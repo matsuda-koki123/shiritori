@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>しりとり</title>
+<style>
+:root {
+  --bg: #0f1419;
+  --surface: #1a2332;
+  --surface2: #243044;
+  --border: #2d3a4f;
+  --text: #e8eef6;
+  --muted: #8b9bb4;
+  --accent: #3d8bfd;
+  --accent-hover: #5ba0ff;
+  --success: #3dd68c;
+  --danger: #f07178;
+  --warn: #e6c07b;
+  --player: #5cc8ff;
+  --cpu: #c792ea;
+  --radius: 14px;
+  --tap: 48px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+header {
+  padding: 16px 16px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+header .subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.controls {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.controls label { font-size: 0.8rem; color: var(--muted); }
+select, button, input[type="text"] {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  min-height: var(--tap);
+  padding: 0 14px;
+}
+select { flex: 1; min-width: 100px; cursor: pointer; }
+button {
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s, transform 0.1s;
+}
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn-ghost { background: transparent; color: var(--muted); }
+.status-bar {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.badge-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+.badge.turn-player { border-color: var(--player); color: var(--player); }
+.badge.turn-cpu { border-color: var(--cpu); color: var(--cpu); }
+.badge.sound {
+  background: linear-gradient(135deg, #1e3a5f, #2a4a6f);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+}
+.badge.sound span.kana { font-size: 1.35rem; }
+.next-hint { font-size: 0.85rem; color: var(--muted); }
+.next-hint strong { color: var(--warn); font-size: 1.15rem; }
+.message {
+  margin: 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  display: none;
+}
+.message.show { display: block; }
+.message.error { background: rgba(240,113,120,0.15); border: 1px solid var(--danger); color: var(--danger); }
+.message.win { background: rgba(61,214,140,0.15); border: 1px solid var(--success); color: var(--success); }
+.message.lose { background: rgba(240,113,120,0.15); border: 1px solid var(--danger); color: var(--danger); }
+.message.info { background: rgba(61,139,253,0.12); border: 1px solid var(--accent); color: var(--player); }
+.history-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.history-title {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  animation: fadeIn 0.25s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.history-item .who {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.history-item.player .who { background: rgba(92,200,255,0.2); color: var(--player); }
+.history-item.cpu .who { background: rgba(199,146,234,0.2); color: var(--cpu); }
+.history-item .word { flex: 1; min-width: 0; }
+.history-item .surface { font-size: 1.05rem; font-weight: 600; word-break: break-all; }
+.history-item .reading { font-size: 0.8rem; color: var(--muted); }
+.history-item .num { font-size: 0.7rem; color: var(--muted); align-self: center; }
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.input-area {
+  padding: 12px 16px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+}
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+.input-row input {
+  flex: 1;
+  font-size: 1.1rem;
+  min-width: 0;
+}
+.input-row button { min-width: 72px; }
+.surrender-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+.surrender-row button {
+  min-height: 40px;
+  font-size: 0.85rem;
+  padding: 0 16px;
+}
+.dict-count {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>しりとり</h1>
+  <div class="subtitle">人 vs コンピューター</div>
+</header>
+
+<div class="controls">
+  <label for="difficulty">難易度</label>
+  <select id="difficulty" aria-label="難易度">
+    <option value="easy">初級</option>
+    <option value="medium" selected>中級</option>
+    <option value="hard">上級</option>
+  </select>
+  <button type="button" class="btn-primary" id="btnNew">新しいゲーム</button>
+</div>
+
+<div class="status-bar">
+  <div class="badge-row">
+    <span class="badge" id="turnBadge">準備中</span>
+    <span class="badge sound" id="soundBadge" style="display:none">次: <span class="kana" id="nextSound">—</span></span>
+  </div>
+  <div class="next-hint" id="nextHint">「新しいゲーム」を押してスタート</div>
+</div>
+
+<div class="message" id="message" role="alert"></div>
+
+<div class="history-wrap">
+  <div class="history-title">履歴</div>
+  <div class="history" id="history">
+    <div class="empty-state" id="emptyState">まだ言葉がありません</div>
+  </div>
+</div>
+
+<div class="input-area">
+  <div class="input-row">
+    <input type="text" id="wordInput" placeholder="ことばを入力…" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="done" disabled>
+    <button type="button" class="btn-primary" id="btnSubmit" disabled>送信</button>
+  </div>
+  <div class="surrender-row">
+    <button type="button" class="btn-danger" id="btnSurrender" disabled>降参する</button>
+  </div>
+  <div class="dict-count" id="dictCount"></div>
+</div>
+
+<script>
+const DICTIONARY = [{"surface":"愛","readings":["あい"]},{"surface":"合図","readings":["あいず"]},{"surface":"相手","readings":["あいて"]},{"surface":"青空","readings":["あおぞら"]},{"surface":"赤","readings":["あか"]},{"surface":"明かり","readings":["あかり"]},{"surface":"秋","readings":["あき"]},{"surface":"空き地","readings":["あきち"]},{"surface":"握手","readings":["あくしゅ"]},{"surface":"悪魔","readings":["あくま"]},{"surface":"朝","readings":["あさ"]},{"surface":"朝日","readings":["あさひ"]},{"surface":"足","readings":["あし"]},{"surface":"明日","readings":["あした"]},{"surface":"遊び","readings":["あそび"]},{"surface":"頭","readings":["あたま"]},{"surface":"辺り","readings":["あたり"]},{"surface":"圧力","readings":["あつりょく"]},{"surface":"穴","readings":["あな"]},{"surface":"兄","readings":["あに"]},{"surface":"姉","readings":["あね"]},{"surface":"雨","readings":["あめ"]},{"surface":"飴","readings":["あめ"]},{"surface":"安心","readings":["あんしん"]},{"surface":"暗記","readings":["あんき"]},{"surface":"暗号","readings":["あんごう"]},{"surface":"案内","readings":["あんない"]},{"surface":"アパート","readings":["あぱーと"]},{"surface":"アルバイト","readings":["あるばいと"]},{"surface":"アルバム","readings":["あるばむ"]},{"surface":"アイス","readings":["あいす"]},{"surface":"アイロン","readings":["あいろん"]},{"surface":"アクセント","readings":["あくせんと"]},{"surface":"アジア","readings":["あじあ"]},{"surface":"アナウンサー","readings":["あなうんさー"]},{"surface":"アフリカ","readings":["あふりか"]},{"surface":"アメリカ","readings":["あめりか"]},{"surface":"油","readings":["あぶら","ゆ"]},{"surface":"集まり","readings":["あつまり"]},{"surface":"跡","readings":["あと"]},{"surface":"余り","readings":["あまり"]},{"surface":"嵐","readings":["あらし"]},{"surface":"泡","readings":["あわ"]},{"surface":"暗室","readings":["あんしつ"]},{"surface":"暗示","readings":["あんじ"]},{"surface":"挨拶","readings":["あいさつ"]},{"surface":"愛情","readings":["あいじょう"]},{"surface":"合い図","readings":["あいず"]},{"surface":"青色","readings":["あおいろ"]},{"surface":"赤信号","readings":["あかしんごう"]},{"surface":"赤ちゃん","readings":["あかちゃん"]},{"surface":"空き缶","readings":["あきかん"]},{"surface":"明け方","readings":["あけがた"]},{"surface":"朝御飯","readings":["あさごはん"]},{"surface":"足音","readings":["あしおと"]},{"surface":"足元","readings":["あしもと"]},{"surface":"味","readings":["あじ"]},{"surface":"汗","readings":["あせ"]},{"surface":"辺り一面","readings":["あたりいちめん"]},{"surface":"厚紙","readings":["あつがみ"]},{"surface":"宛名","readings":["あてな"]},{"surface":"後","readings":["あと"]},{"surface":"跡地","readings":["あとち"]},{"surface":"穴場","readings":["あなば"]},{"surface":"兄さん","readings":["にいさん"]},{"surface":"姉さん","readings":["ねえさん"]},{"surface":"油絵","readings":["あぶらえ"]},{"surface":"甘酒","readings":["あまざけ"]},{"surface":"雨傘","readings":["あまがさ"]},{"surface":"雨宿り","readings":["あまやどり"]},{"surface":"網","readings":["あみ"]},{"surface":"編み物","readings":["あみもの"]},{"surface":"過ち","readings":["あやまち"]},{"surface":"綾","readings":["あや"]},{"surface":"争い","readings":["あらそい"]},{"surface":"改札","readings":["かいさつ"]},{"surface":"新た","readings":["あらた"]},{"surface":"荒れ地","readings":["あれち"]},{"surface":"慌ただしさ","readings":["あわただしさ"]},{"surface":"案外","readings":["あんがい"]},{"surface":"暗殺","readings":["あんさつ"]},{"surface":"暗算","readings":["あんざん"]},{"surface":"安静","readings":["あんせい"]},{"surface":"安定","readings":["あんてい"]},{"surface":"あんパン","readings":["あんぱん"]},{"surface":"いい人","readings":["いいひと"]},{"surface":"家","readings":["いえ"]},{"surface":"以外","readings":["いがい"]},{"surface":"医学","readings":["いがく"]},{"surface":"息","readings":["いき"]},{"surface":"生き物","readings":["いきもの"]},{"surface":"育児","readings":["いくじ"]},{"surface":"池","readings":["いけ"]},{"surface":"意見","readings":["いけん"]},{"surface":"意志","readings":["いし"]},{"surface":"石","readings":["いし"]},{"surface":"医師","readings":["いし"]},{"surface":"意地","readings":["いじ"]},{"surface":"泉","readings":["いずみ"]},{"surface":"板","readings":["いた"]},{"surface":"痛み","readings":["いたみ"]},{"surface":"市場","readings":["いちば"]},{"surface":"一番","readings":["いちばん"]},{"surface":"一日","readings":["いちにち"]},{"surface":"位置","readings":["いち"]},{"surface":"一家","readings":["いっか"]},{"surface":"一見","readings":["いっけん"]},{"surface":"一生","readings":["いっしょう"]},{"surface":"一層","readings":["いっそう"]},{"surface":"一体","readings":["いったい"]},{"surface":"一端","readings":["いったん"]},{"surface":"いつも","readings":["いつも"]},{"surface":"糸","readings":["いと"]},{"surface":"井戸","readings":["いど"]},{"surface":"稲","readings":["いね"]},{"surface":"祈り","readings":["いのり"]},{"surface":"居間","readings":["いま"]},{"surface":"今","readings":["いま"]},{"surface":"意味","readings":["いみ"]},{"surface":"妹","readings":["いもうと"]},{"surface":"嫌","readings":["いや"]},{"surface":"依頼","readings":["いらい"]},{"surface":"医療","readings":["いりょう"]},{"surface":"入れ物","readings":["いれもの"]},{"surface":"色","readings":["いろ"]},{"surface":"岩","readings":["いわ"]},{"surface":"祝い","readings":["いわい"]},{"surface":"印","readings":["いん","しるし"]},{"surface":"印刷","readings":["いんさつ"]},{"surface":"印象","readings":["いんしょう"]},{"surface":"引退","readings":["いんたい"]},{"surface":"インフルエンザ","readings":["いんふるえんざ"]},{"surface":"インク","readings":["いんく"]},{"surface":"インターネット","readings":["いんたーねっと"]},{"surface":"イメージ","readings":["いめーじ"]},{"surface":"イベント","readings":["いべんと"]},{"surface":"イヤホン","readings":["いやほん"]},{"surface":"犬","readings":["いぬ"]},{"surface":"椅子","readings":["いす"]},{"surface":"衣食住","readings":["いしょくじゅう"]},{"surface":"移住","readings":["いじゅう"]},{"surface":"異性","readings":["いせい"]},{"surface":"依存","readings":["いぞん"]},{"surface":"痛み止め","readings":["いたみどめ"]},{"surface":"一冊","readings":["いっさつ"]},{"surface":"一流","readings":["いちりゅう"]},{"surface":"一度","readings":["いちど"]},{"surface":"一番星","readings":["いちばんぼし"]},{"surface":"いつか","readings":["いつか"]},{"surface":"移転","readings":["いてん"]},{"surface":"移動","readings":["いどう"]},{"surface":"以内","readings":["いない"]},{"surface":"稲荷","readings":["いなり"]},{"surface":"犬小屋","readings":["いぬごや"]},{"surface":"衣服","readings":["いふく"]},{"surface":"今ごろ","readings":["いまごろ"]},{"surface":"今まで","readings":["いままで"]},{"surface":"移民","readings":["いみん"]},{"surface":"医療費","readings":["いりょうひ"]},{"surface":"色紙","readings":["いろがみ"]},{"surface":"色々","readings":["いろいろ"]},{"surface":"岩山","readings":["いわやま"]},{"surface":"飲酒","readings":["いんしゅ"]},{"surface":"印刷機","readings":["いんさつき"]},{"surface":"飲酒運転","readings":["いんしゅうんてん"]},{"surface":"上","readings":["うえ"]},{"surface":"植木","readings":["うえき"]},{"surface":"魚","readings":["うお","さかな"]},{"surface":"伺い","readings":["うかがい"]},{"surface":"浮き","readings":["うき"]},{"surface":"受付","readings":["うけつけ"]},{"surface":"動き","readings":["うごき"]},{"surface":"兎","readings":["うさぎ"]},{"surface":"牛","readings":["うし"]},{"surface":"後ろ","readings":["うしろ"]},{"surface":"嘘","readings":["うそ"]},{"surface":"歌","readings":["うた"]},{"surface":"内外","readings":["うちそと"]},{"surface":"宇宙","readings":["うちゅう"]},{"surface":"移り","readings":["うつり"]},{"surface":"腕","readings":["うで"]},{"surface":"うどん","readings":["うどん"]},{"surface":"鰻","readings":["うなぎ"]},{"surface":"馬","readings":["うま"]},{"surface":"海","readings":["うみ"]},{"surface":"梅","readings":["うめ"]},{"surface":"裏","readings":["うら"]},{"surface":"売上","readings":["うりあげ"]},{"surface":"売り場","readings":["うりば"]},{"surface":"噂","readings":["うわさ"]},{"surface":"運","readings":["うん"]},{"surface":"運転","readings":["うんてん"]},{"surface":"運動","readings":["うんどう"]},{"surface":"雲","readings":["くも"]},{"surface":"上達","readings":["じょうたつ"]},{"surface":"上着","readings":["うわぎ"]},{"surface":"打席","readings":["だせき"]},{"surface":"笑顔","readings":["えがお"]},{"surface":"駅","readings":["えき"]},{"surface":"液","readings":["えき"]},{"surface":"枝","readings":["えだ"]},{"surface":"江戸","readings":["えど"]},{"surface":"絵","readings":["え"]},{"surface":"餌","readings":["えさ"]},{"surface":"エスカレーター","readings":["えすかれーたー"]},{"surface":"エネルギー","readings":["えねるぎー"]},{"surface":"エレベーター","readings":["えれべーたー"]},{"surface":"円","readings":["えん"]},{"surface":"演技","readings":["えんぎ"]},{"surface":"園芸","readings":["えんげい"]},{"surface":"円周","readings":["えんしゅう"]},{"surface":"エンジン","readings":["えんじん"]},{"surface":"演説","readings":["えんぜつ"]},{"surface":"遠足","readings":["えんそく"]},{"surface":"鉛筆","readings":["えんぴつ"]},{"surface":"遠慮","readings":["えんりょ"]},{"surface":"英語","readings":["えいご"]},{"surface":"映画","readings":["えいが"]},{"surface":"営業","readings":["えいぎょう"]},{"surface":"影響","readings":["えいきょう"]},{"surface":"衛星","readings":["えいせい"]},{"surface":"永遠","readings":["えいえん"]},{"surface":"栄誉","readings":["えいよ"]},{"surface":"液体","readings":["えきたい"]},{"surface":"駅前","readings":["えきまえ"]},{"surface":"枝豆","readings":["えだまめ"]},{"surface":"恵比寿","readings":["えびす"]},{"surface":"エビ","readings":["えび"]},{"surface":"エラ","readings":["えら"]},{"surface":"エリート","readings":["えりーと"]},{"surface":"宴会","readings":["えんかい"]},{"surface":"延期","readings":["えんき"]},{"surface":"円形","readings":["えんけい"]},{"surface":"炎","readings":["ほのお"]},{"surface":"煙","readings":["けむり"]},{"surface":"王子","readings":["おうじ"]},{"surface":"王女","readings":["おうじょ"]},{"surface":"応答","readings":["おうとう"]},{"surface":"応用","readings":["おうよう"]},{"surface":"大金","readings":["おおがね"]},{"surface":"大型","readings":["おおがた"]},{"surface":"大勢","readings":["おおぜい"]},{"surface":"大通り","readings":["おおどおり"]},{"surface":"大家","readings":["おおや"]},{"surface":"丘","readings":["おか"]},{"surface":"お金","readings":["おかね"]},{"surface":"お菓子","readings":["おかし"]},{"surface":"おかげ","readings":["おかげ"]},{"surface":"奥さん","readings":["おくさん"]},{"surface":"屋上","readings":["おくじょう"]},{"surface":"遅れ","readings":["おくれ"]},{"surface":"起こり","readings":["おこり"]},{"surface":"お酒","readings":["おさけ"]},{"surface":"お皿","readings":["おさら"]},{"surface":"教え","readings":["おしえ"]},{"surface":"お城","readings":["おしろ"]},{"surface":"伯父","readings":["おじ"]},{"surface":"おじさん","readings":["おじさん"]},{"surface":"お茶","readings":["おちゃ"]},{"surface":"音","readings":["おと"]},{"surface":"弟","readings":["おとうと"]},{"surface":"男","readings":["おとこ"]},{"surface":"大人","readings":["おとな"]},{"surface":"お腹","readings":["おなか"]},{"surface":"同じ","readings":["おなじ"]},{"surface":"鬼","readings":["おに"]},{"surface":"お姉さん","readings":["おねえさん"]},{"surface":"お願い","readings":["おねがい"]},{"surface":"おば","readings":["おば"]},{"surface":"おばさん","readings":["おばさん"]},{"surface":"お盆","readings":["おぼん"]},{"surface":"お前","readings":["おまえ"]},{"surface":"想い","readings":["おもい"]},{"surface":"重み","readings":["おもみ"]},{"surface":"親","readings":["おや"]},{"surface":"泳ぎ","readings":["およぎ"]},{"surface":"終わり","readings":["おわり"]},{"surface":"音楽","readings":["おんがく"]},{"surface":"温度","readings":["おんど"]},{"surface":"恩","readings":["おん"]},{"surface":"温泉","readings":["おんせん"]},{"surface":"女","readings":["おんな"]},{"surface":"女の子","readings":["おんなのこ"]},{"surface":"オイル","readings":["おいる"]},{"surface":"オレンジ","readings":["おれんじ"]},{"surface":"オートバイ","readings":["おーとばい"]},{"surface":"オーブン","readings":["おーぶん"]},{"surface":"オークション","readings":["おーくしょん"]},{"surface":"オフィス","readings":["おふぃす"]},{"surface":"おでん","readings":["おでん"]},{"surface":"おにぎり","readings":["おにぎり"]},{"surface":"おむすび","readings":["おむすび"]},{"surface":"おもちゃ","readings":["おもちゃ"]},{"surface":"オリンピック","readings":["おりんぴっく"]},{"surface":"オランダ","readings":["おらんだ"]},{"surface":"折り紙","readings":["おりがみ"]},{"surface":"織物","readings":["おりもの"]},{"surface":"恩返し","readings":["おんがえし"]},{"surface":"音読み","readings":["おんよみ"]},{"surface":"音量","readings":["おんりょう"]},{"surface":"恩恵","readings":["おんけい"]},{"surface":"蚊","readings":["か"]},{"surface":"課","readings":["か"]},{"surface":"蚊帳","readings":["かや"]},{"surface":"会員","readings":["かいいん"]},{"surface":"海外","readings":["かいがい"]},{"surface":"海岸","readings":["かいがん"]},{"surface":"会議","readings":["かいぎ"]},{"surface":"会計","readings":["かいけい"]},{"surface":"外交","readings":["がいこう"]},{"surface":"開始","readings":["かいし"]},{"surface":"会社","readings":["かいしゃ"]},{"surface":"会場","readings":["かいじょう"]},{"surface":"改善","readings":["かいぜん"]},{"surface":"階段","readings":["かいだん"]},{"surface":"開店","readings":["かいてん"]},{"surface":"回答","readings":["かいとう"]},{"surface":"外部","readings":["がいぶ"]},{"surface":"解放","readings":["かいほう"]},{"surface":"買い物","readings":["かいもの"]},{"surface":"海洋","readings":["かいよう"]},{"surface":"帰り","readings":["かえり"]},{"surface":"顔","readings":["かお"]},{"surface":"画家","readings":["がか"]},{"surface":"鍵","readings":["かぎ"]},{"surface":"影","readings":["かげ"]},{"surface":"加減","readings":["かげん"]},{"surface":"過去","readings":["かこ"]},{"surface":"火事","readings":["かじ"]},{"surface":"歌手","readings":["かしゅ"]},{"surface":"数","readings":["かず"]},{"surface":"風","readings":["かぜ"]},{"surface":"風邪","readings":["かぜ"]},{"surface":"家族","readings":["かぞく"]},{"surface":"片手","readings":["かたて"]},{"surface":"形","readings":["かたち"]},{"surface":"肩","readings":["かた"]},{"surface":"刀","readings":["かたな"]},{"surface":"価値","readings":["かち"]},{"surface":"勝ち","readings":["かち"]},{"surface":"活動","readings":["かつどう"]},{"surface":"活躍","readings":["かつやく"]},{"surface":"家庭","readings":["かてい"]},{"surface":"過程","readings":["かてい"]},{"surface":"角","readings":["かど"]},{"surface":"金","readings":["かね"]},{"surface":"鐘","readings":["かね"]},{"surface":"株","readings":["かぶ"]},{"surface":"壁","readings":["かべ"]},{"surface":"我慢","readings":["がまん"]},{"surface":"髪","readings":["かみ"]},{"surface":"紙","readings":["かみ"]},{"surface":"神","readings":["かみ"]},{"surface":"雷","readings":["かみなり"]},{"surface":"体","readings":["からだ"]},{"surface":"仮名","readings":["かな"]},{"surface":"金魚","readings":["きんぎょ"]},{"surface":"可能","readings":["かのう"]},{"surface":"株価","readings":["かぶか"]},{"surface":"釜","readings":["かま"]},{"surface":"髪の毛","readings":["かみのけ"]},{"surface":"火曜日","readings":["かようび"]},{"surface":"空","readings":["から","そら"]},{"surface":"唐揚げ","readings":["からあげ"]},{"surface":"ガラス","readings":["がらす"]},{"surface":"借り","readings":["かり"]},{"surface":"彼","readings":["かれ"]},{"surface":"彼ら","readings":["かれら"]},{"surface":"川","readings":["かわ"]},{"surface":"皮","readings":["かわ"]},{"surface":"革","readings":["かわ"]},{"surface":"代わり","readings":["かわり"]},{"surface":"考え","readings":["かんがえ"]},{"surface":"感覚","readings":["かんかく"]},{"surface":"観客","readings":["かんきゃく"]},{"surface":"関係","readings":["かんけい"]},{"surface":"漢字","readings":["かんじ"]},{"surface":"感情","readings":["かんじょう"]},{"surface":"完成","readings":["かんせい"]},{"surface":"感想","readings":["かんそう"]},{"surface":"簡単","readings":["かんたん"]},{"surface":"関東","readings":["かんとう"]},{"surface":"管内","readings":["かんない"]},{"surface":"看板","readings":["かんばん"]},{"surface":"管理","readings":["かんり"]},{"surface":"関連","readings":["かんれん"]},{"surface":"鏡","readings":["かがみ"]},{"surface":"科学","readings":["かがく"]},{"surface":"化学","readings":["かがく"]},{"surface":"価格","readings":["かかく"]},{"surface":"柿","readings":["かき"]},{"surface":"下記","readings":["かき"]},{"surface":"家具","readings":["かぐ"]},{"surface":"学問","readings":["がくもん"]},{"surface":"隠れ","readings":["かくれ"]},{"surface":"掛け算","readings":["かけざん"]},{"surface":"加減乗除","readings":["かげんじょうじょ"]},{"surface":"傘","readings":["かさ"]},{"surface":"火山","readings":["かざん"]},{"surface":"菓子","readings":["かし"]},{"surface":"貸し","readings":["かし"]},{"surface":"過失","readings":["かしつ"]},{"surface":"風邪薬","readings":["かぜぐすり"]},{"surface":"数え方","readings":["かぞえかた"]},{"surface":"課題","readings":["かだい"]},{"surface":"片付","readings":["かたづけ"]},{"surface":"型","readings":["かた"]},{"surface":"肩書き","readings":["かたがき"]},{"surface":"片道","readings":["かたみち"]},{"surface":"勝ち負け","readings":["かちまけ"]},{"surface":"学年","readings":["がくねん"]},{"surface":"学期","readings":["がっき"]},{"surface":"学校","readings":["がっこう"]},{"surface":"学費","readings":["がくひ"]},{"surface":"学年末","readings":["がくねんまつ"]},{"surface":"カップ","readings":["かっぷ"]},{"surface":"カメラ","readings":["かめら"]},{"surface":"カレー","readings":["かれー"]},{"surface":"カレンダー","readings":["かれんだー"]},{"surface":"カード","readings":["かーど"]},{"surface":"カーテン","readings":["かーてん"]},{"surface":"ガソリン","readings":["がそりん"]},{"surface":"ガム","readings":["がむ"]},{"surface":"ガイド","readings":["がいど"]},{"surface":"ギター","readings":["ぎたー"]},{"surface":"ギフト","readings":["ぎふと"]},{"surface":"木","readings":["き"]},{"surface":"気","readings":["き"]},{"surface":"黄色","readings":["きいろ"]},{"surface":"気温","readings":["きおん"]},{"surface":"機会","readings":["きかい"]},{"surface":"機械","readings":["きかい"]},{"surface":"期間","readings":["きかん"]},{"surface":"企業","readings":["きぎょう"]},{"surface":"危険","readings":["きけん"]},{"surface":"気候","readings":["きこう"]},{"surface":"記事","readings":["きじ"]},{"surface":"傷","readings":["きず"]},{"surface":"北","readings":["きた"]},{"surface":"期待","readings":["きたい"]},{"surface":"帰宅","readings":["きたく"]},{"surface":"基地","readings":["きち"]},{"surface":"切手","readings":["きって"]},{"surface":"切符","readings":["きっぷ"]},{"surface":"記入","readings":["きにゅう"]},{"surface":"絹","readings":["きぬ"]},{"surface":"記念","readings":["きねん"]},{"surface":"機能","readings":["きのう"]},{"surface":"昨日","readings":["きのう","さくじつ"]},{"surface":"希望","readings":["きぼう"]},{"surface":"決まり","readings":["きまり"]},{"surface":"君","readings":["きみ"]},{"surface":"気持ち","readings":["きもち"]},{"surface":"着物","readings":["きもの"]},{"surface":"客","readings":["きゃく"]},{"surface":"逆","readings":["ぎゃく"]},{"surface":"キャンプ","readings":["きゃんぷ"]},{"surface":"級","readings":["きゅう"]},{"surface":"休憩","readings":["きゅうけい"]},{"surface":"急行","readings":["きゅうこう"]},{"surface":"休日","readings":["きゅうじつ"]},{"surface":"給料","readings":["きゅうりょう"]},{"surface":"教育","readings":["きょういく"]},{"surface":"教会","readings":["きょうかい"]},{"surface":"競技","readings":["きょうぎ"]},{"surface":"興味","readings":["きょうみ"]},{"surface":"兄弟","readings":["きょうだい"]},{"surface":"協力","readings":["きょうりょく"]},{"surface":"去年","readings":["きょねん"]},{"surface":"距離","readings":["きょり"]},{"surface":"嫌い","readings":["きらい"]},{"surface":"霧","readings":["きり"]},{"surface":"記録","readings":["きろく"]},{"surface":"議論","readings":["ぎろん"]},{"surface":"銀行","readings":["ぎんこう"]},{"surface":"銀色","readings":["ぎんいろ"]},{"surface":"近所","readings":["きんじょ"]},{"surface":"金属","readings":["きんぞく"]},{"surface":"禁煙","readings":["きんえん"]},{"surface":"金額","readings":["きんがく"]},{"surface":"筋肉","readings":["きんにく"]},{"surface":"金色","readings":["きんいろ"]},{"surface":"禁止","readings":["きんし"]},{"surface":"緊急","readings":["きんきゅう"]},{"surface":"季節","readings":["きせつ"]},{"surface":"規則","readings":["きそく"]},{"surface":"基礎","readings":["きそ"]},{"surface":"記者","readings":["きしゃ"]},{"surface":"机","readings":["つくえ"]},{"surface":"奇数","readings":["きすう"]},{"surface":"帰宅ラッシュ","readings":["きたくらっしゅ"]},{"surface":"切手帳","readings":["きってちょう"]},{"surface":"記念日","readings":["きねんび"]},{"surface":"キャベツ","readings":["きゃべつ"]},{"surface":"キャリア","readings":["きゃりあ"]},{"surface":"救急","readings":["きゅうきゅう"]},{"surface":"休暇","readings":["きゅうか"]},{"surface":"吸収","readings":["きゅうしゅう"]},{"surface":"急速","readings":["きゅうそく"]},{"surface":"牛乳","readings":["ぎゅうにゅう"]},{"surface":"牛肉","readings":["ぎゅうにく"]},{"surface":"行列","readings":["ぎょうれつ"]},{"surface":"行事","readings":["ぎょうじ"]},{"surface":"業者","readings":["ぎょうしゃ"]},{"surface":"業界","readings":["ぎょうかい"]},{"surface":"教科書","readings":["きょうかしょ"]},{"surface":"教師","readings":["きょうし"]},{"surface":"教室","readings":["きょうしつ"]},{"surface":"強調","readings":["きょうちょう"]},{"surface":"共通","readings":["きょうつう"]},{"surface":"今日","readings":["きょう","こんにち"]},{"surface":"許可","readings":["きょか"]},{"surface":"拒否","readings":["きょひ"]},{"surface":"距離感","readings":["きょりかん"]},{"surface":"切り口","readings":["きりくち"]},{"surface":"切れ味","readings":["きれあじ"]},{"surface":"禁煙席","readings":["きんえんせき"]},{"surface":"金庫","readings":["きんこ"]},{"surface":"金利","readings":["きんり"]},{"surface":"銀座","readings":["ぎんざ"]},{"surface":"草","readings":["くさ"]},{"surface":"癖","readings":["くせ"]},{"surface":"苦情","readings":["くじょう"]},{"surface":"薬","readings":["くすり"]},{"surface":"癖毛","readings":["くせげ"]},{"surface":"管","readings":["くだ"]},{"surface":"下り","readings":["くだり"]},{"surface":"口","readings":["くち"]},{"surface":"靴","readings":["くつ"]},{"surface":"苦痛","readings":["くつう"]},{"surface":"国","readings":["くに"]},{"surface":"首","readings":["くび"]},{"surface":"暗い","readings":["くらい"]},{"surface":"暮らし","readings":["くらし"]},{"surface":"比べ","readings":["くらべ"]},{"surface":"繰り","readings":["くり"]},{"surface":"車","readings":["くるま"]},{"surface":"苦労","readings":["くろう"]},{"surface":"黒","readings":["くろ"]},{"surface":"黒字","readings":["くろじ"]},{"surface":"具合","readings":["ぐあい"]},{"surface":"偶発","readings":["ぐうはつ"]},{"surface":"具体","readings":["ぐたい"]},{"surface":"軍","readings":["ぐん"]},{"surface":"軍隊","readings":["ぐんたい"]},{"surface":"群","readings":["ぐん"]},{"surface":"空気","readings":["くうき"]},{"surface":"空港","readings":["くうこう"]},{"surface":"空腹","readings":["くうふく"]},{"surface":"空白","readings":["くうはく"]},{"surface":"空間","readings":["くうかん"]},{"surface":"クーラー","readings":["くーらー"]},{"surface":"クッキー","readings":["くっきー"]},{"surface":"クラス","readings":["くらす"]},{"surface":"クラブ","readings":["くらぶ"]},{"surface":"クリスマス","readings":["くりすます"]},{"surface":"クリーム","readings":["くりーむ"]},{"surface":"グループ","readings":["ぐるーぷ"]},{"surface":"グレープ","readings":["ぐれーぷ"]},{"surface":"グラス","readings":["ぐらす"]},{"surface":"グラム","readings":["ぐらむ"]},{"surface":"グリーン","readings":["ぐりーん"]},{"surface":"草地","readings":["くさち"]},{"surface":"くしゃみ","readings":["くしゃみ"]},{"surface":"鯨","readings":["くじら"]},{"surface":"果物","readings":["くだもの"]},{"surface":"下り坂","readings":["くだりざか"]},{"surface":"口笛","readings":["くちぶえ"]},{"surface":"口紅","readings":["くちべに"]},{"surface":"靴屋","readings":["くつや"]},{"surface":"靴下","readings":["くつした"]},{"surface":"国旗","readings":["こっき"]},{"surface":"国民","readings":["こくみん"]},{"surface":"国内","readings":["こくない"]},{"surface":"国際","readings":["こくさい"]},{"surface":"黒板","readings":["こくばん"]},{"surface":"腰","readings":["こし"]},{"surface":"故障","readings":["こしょう"]},{"surface":"個人","readings":["こじん"]},{"surface":"答え","readings":["こたえ"]},{"surface":"骨","readings":["ほね"]},{"surface":"言葉","readings":["ことば"]},{"surface":"子供","readings":["こども"]},{"surface":"此方","readings":["こちら"]},{"surface":"コップ","readings":["こっぷ"]},{"surface":"小鳥","readings":["ことり"]},{"surface":"粉","readings":["こな"]},{"surface":"好み","readings":["このみ"]},{"surface":"小林","readings":["こばやし"]},{"surface":"米","readings":["こめ"]},{"surface":"頃","readings":["ころ"]},{"surface":"頃合い","readings":["ころあい"]},{"surface":"転び","readings":["ころび"]},{"surface":"今回","readings":["こんかい"]},{"surface":"今月","readings":["こんげつ"]},{"surface":"今週","readings":["こんしゅう"]},{"surface":"今度","readings":["こんど"]},{"surface":"困難","readings":["こんなん"]},{"surface":"今晩","readings":["こんばん"]},{"surface":"コンビニ","readings":["こんびに"]},{"surface":"コンピュータ","readings":["こんぴゅーた"]},{"surface":"コーヒー","readings":["こーひー"]},{"surface":"コート","readings":["こーと"]},{"surface":"コース","readings":["こーす"]},{"surface":"ゴール","readings":["ごーる"]},{"surface":"ゴミ","readings":["ごみ"]},{"surface":"ゴルフ","readings":["ごるふ"]},{"surface":"午後","readings":["ごご"]},{"surface":"午前","readings":["ごぜん"]},{"surface":"ご飯","readings":["ごはん"]},{"surface":"語学","readings":["ごがく"]},{"surface":"誤解","readings":["ごかい"]},{"surface":"五感","readings":["ごかん"]},{"surface":"合計","readings":["ごうけい"]},{"surface":"合格","readings":["ごうかく"]},{"surface":"号車","readings":["ごうしゃ"]},{"surface":"強盗","readings":["ごうとう"]},{"surface":"合流","readings":["ごうりゅう"]},{"surface":"豪華","readings":["ごうか"]},{"surface":"号外","readings":["ごうがい"]},{"surface":"幸福","readings":["こうふく"]},{"surface":"工場","readings":["こうじょう"]},{"surface":"校長","readings":["こうちょう"]},{"surface":"交通","readings":["こうつう"]},{"surface":"高校","readings":["こうこう"]},{"surface":"公園","readings":["こうえん"]},{"surface":"公演","readings":["こうえん"]},{"surface":"効果","readings":["こうか"]},{"surface":"交換","readings":["こうかん"]},{"surface":"後期","readings":["こうき"]},{"surface":"講義","readings":["こうぎ"]},{"surface":"工業","readings":["こうぎょう"]},{"surface":"航空","readings":["こうくう"]},{"surface":"光景","readings":["こうけい"]},{"surface":"広告","readings":["こうこく"]},{"surface":"交際","readings":["こうさい"]},{"surface":"工事","readings":["こうじ"]},{"surface":"公式","readings":["こうしき"]},{"surface":"公衆","readings":["こうしゅう"]},{"surface":"香水","readings":["こうすい"]},{"surface":"構成","readings":["こうせい"]},{"surface":"構造","readings":["こうぞう"]},{"surface":"高速","readings":["こうそく"]},{"surface":"交替","readings":["こうたい"]},{"surface":"講座","readings":["こうざ"]},{"surface":"紅茶","readings":["こうちゃ"]},{"surface":"行動","readings":["こうどう"]},{"surface":"購入","readings":["こうにゅう"]},{"surface":"後輩","readings":["こうはい"]},{"surface":"公表","readings":["こうひょう"]},{"surface":"候補","readings":["こうほ"]},{"surface":"公平","readings":["こうへい"]},{"surface":"公民","readings":["こうみん"]},{"surface":"公用","readings":["こうよう"]},{"surface":"高齢","readings":["こうれい"]},{"surface":"考慮","readings":["こうりょ"]},{"surface":"声","readings":["こえ"]},{"surface":"氷","readings":["こおり"]},{"surface":"凍り","readings":["こおり"]},{"surface":"小型","readings":["こがた"]},{"surface":"小型車","readings":["こがたしゃ"]},{"surface":"虚空","readings":["こくう"]},{"surface":"国産","readings":["こくさん"]},{"surface":"国語","readings":["こくご"]},{"surface":"穀物","readings":["こくもつ"]},{"surface":"心","readings":["こころ"]},{"surface":"試み","readings":["こころみ"]},{"surface":"故障車","readings":["こしょうしゃ"]},{"surface":"戸締まり","readings":["とじまり"]},{"surface":"古代","readings":["こだい"]},{"surface":"小包","readings":["こづつみ"]},{"surface":"ことわざ","readings":["ことわざ"]},{"surface":"孤独","readings":["こどく"]},{"surface":"粉雪","readings":["こなゆき"]},{"surface":"細かい","readings":["こまかい"]},{"surface":"駒","readings":["こま"]},{"surface":"小麦","readings":["こむぎ"]},{"surface":"小屋","readings":["こや"]},{"surface":"雇用","readings":["こよう"]},{"surface":"婚礼","readings":["こんれい"]},{"surface":"混乱","readings":["こんらん"]},{"surface":"根性","readings":["こんじょう"]},{"surface":"根拠","readings":["こんきょ"]},{"surface":"混凝土","readings":["こんくりーと"]},{"surface":"コンタクト","readings":["こんたくと"]},{"surface":"コント","readings":["こんと"]},{"surface":"コーナー","readings":["こーなー"]},{"surface":"コースター","readings":["こーすたー"]},{"surface":"ゴールデン","readings":["ごーるでん"]},{"surface":"ゴム","readings":["ごむ"]},{"surface":"五輪","readings":["ごりん"]},{"surface":"語彙","readings":["ごい"]},{"surface":"五月","readings":["ごがつ"]},{"surface":"五十音","readings":["ごじゅうおん"]},{"surface":"ご主人","readings":["ごしゅじん"]},{"surface":"御飯","readings":["ごはん"]},{"surface":"差","readings":["さ"]},{"surface":"再","readings":["さい"]},{"surface":"際","readings":["さい"]},{"surface":"財布","readings":["さいふ"]},{"surface":"材料","readings":["ざいりょう"]},{"surface":"坂","readings":["さか"]},{"surface":"境界","readings":["さかい"]},{"surface":"逆さま","readings":["さかさま"]},{"surface":"先","readings":["さき"]},{"surface":"咲き","readings":["さき"]},{"surface":"作品","readings":["さくひん"]},{"surface":"作文","readings":["さくぶん"]},{"surface":"酒","readings":["さけ"]},{"surface":"下げ","readings":["さげ"]},{"surface":"囁き","readings":["ささやき"]},{"surface":"札","readings":["さつ"]},{"surface":"雑誌","readings":["ざっし"]},{"surface":"砂糖","readings":["さとう"]},{"surface":"里","readings":["さと"]},{"surface":"砂漠","readings":["さばく"]},{"surface":"様","readings":["さま"]},{"surface":"寒さ","readings":["さむさ"]},{"surface":"左右","readings":["さゆう"]},{"surface":"皿","readings":["さら"]},{"surface":"サラダ","readings":["さらだ"]},{"surface":"猿","readings":["さる"]},{"surface":"騒ぎ","readings":["さわぎ"]},{"surface":"参加","readings":["さんか"]},{"surface":"参考","readings":["さんこう"]},{"surface":"産業","readings":["さんぎょう"]},{"surface":"算出","readings":["さんしゅつ"]},{"surface":"酸素","readings":["さんそ"]},{"surface":"三段","readings":["さんだん"]},{"surface":"散歩","readings":["さんぽ"]},{"surface":"三輪車","readings":["さんりんしゃ"]},{"surface":"サービス","readings":["さーびす"]},{"surface":"サイズ","readings":["さいず"]},{"surface":"サイン","readings":["さいん"]},{"surface":"サッカー","readings":["さっかー"]},{"surface":"サンドイッチ","readings":["さんどいっち"]},{"surface":"サイレン","readings":["さいれん"]},{"surface":"魚屋","readings":["さかなや"]},{"surface":"桜","readings":["さくら"]},{"surface":"刺身","readings":["さしみ"]},{"surface":"作家","readings":["さっか"]},{"surface":"昨夜","readings":["さくや"]},{"surface":"座席","readings":["ざせき"]},{"surface":"座標","readings":["ざひょう"]},{"surface":"様々","readings":["さまざま"]},{"surface":"寒気","readings":["さむけ"]},{"surface":"左右対称","readings":["さゆうたいしょう"]},{"surface":"皿洗い","readings":["さらあらい"]},{"surface":"猿回し","readings":["さるまわし"]},{"surface":"酸化","readings":["さんか"]},{"surface":"三角形","readings":["さんかくけい"]},{"surface":"残業","readings":["ざんぎょう"]},{"surface":"算数","readings":["さんすう"]},{"surface":"賛成","readings":["さんせい"]},{"surface":"残念","readings":["ざんねん"]},{"surface":"山脈","readings":["さんみゃく"]},{"surface":"山道","readings":["やまみち"]},{"surface":"詩","readings":["し"]},{"surface":"死","readings":["し"]},{"surface":"市","readings":["し"]},{"surface":"試合","readings":["しあい"]},{"surface":"寺院","readings":["じいん"]},{"surface":"塩","readings":["しお"]},{"surface":"歯科","readings":["しか"]},{"surface":"司会","readings":["しかい"]},{"surface":"資格","readings":["しかく"]},{"surface":"四季","readings":["しき"]},{"surface":"式","readings":["しき"]},{"surface":"支給","readings":["しきゅう"]},{"surface":"時期","readings":["じき"]},{"surface":"仕事","readings":["しごと"]},{"surface":"死者","readings":["ししゃ"]},{"surface":"辞書","readings":["じしょ"]},{"surface":"自信","readings":["じしん"]},{"surface":"地震","readings":["じしん"]},{"surface":"自然","readings":["しぜん"]},{"surface":"下","readings":["した"]},{"surface":"死体","readings":["したい"]},{"surface":"事態","readings":["じたい"]},{"surface":"自宅","readings":["じたく"]},{"surface":"七","readings":["なな"]},{"surface":"質問","readings":["しつもん"]},{"surface":"支店","readings":["してん"]},{"surface":"指導","readings":["しどう"]},{"surface":"品","readings":["しな","ひん"]},{"surface":"市内","readings":["しない"]},{"surface":"支払い","readings":["しはらい"]},{"surface":"死亡","readings":["しぼう"]},{"surface":"島","readings":["しま"]},{"surface":"締め切り","readings":["しめきり"]},{"surface":"地面","readings":["じめん"]},{"surface":"社会","readings":["しゃかい"]},{"surface":"写真","readings":["しゃしん"]},{"surface":"社員","readings":["しゃいん"]},{"surface":"車庫","readings":["しゃこ"]},{"surface":"車掌","readings":["しゃしょう"]},{"surface":"シャツ","readings":["しゃつ"]},{"surface":"借金","readings":["しゃっきん"]},{"surface":"シャワー","readings":["しゃわー"]},{"surface":"週","readings":["しゅう"]},{"surface":"週刊","readings":["しゅうかん"]},{"surface":"習慣","readings":["しゅうかん"]},{"surface":"住居","readings":["じゅうきょ"]},{"surface":"従業員","readings":["じゅうぎょういん"]},{"surface":"集合","readings":["しゅうごう"]},{"surface":"収支","readings":["しゅうし"]},{"surface":"重視","readings":["じゅうし"]},{"surface":"住所","readings":["じゅうしょ"]},{"surface":"修正","readings":["しゅうせい"]},{"surface":"渋滞","readings":["じゅうたい"]},{"surface":"住宅","readings":["じゅうたく"]},{"surface":"収入","readings":["しゅうにゅう"]},{"surface":"週末","readings":["しゅうまつ"]},{"surface":"重要","readings":["じゅうよう"]},{"surface":"修理","readings":["しゅうり"]},{"surface":"主役","readings":["しゅやく"]},{"surface":"主義","readings":["しゅぎ"]},{"surface":"手術","readings":["しゅじゅつ"]},{"surface":"手段","readings":["しゅだん"]},{"surface":"主張","readings":["しゅちょう"]},{"surface":"出席","readings":["しゅっせき"]},{"surface":"出品","readings":["しゅっぴん"]},{"surface":"出発","readings":["しゅっぱつ"]},{"surface":"出版","readings":["しゅっぱん"]},{"surface":"首都","readings":["しゅと"]},{"surface":"主任","readings":["しゅにん"]},{"surface":"主婦","readings":["しゅふ"]},{"surface":"趣味","readings":["しゅみ"]},{"surface":"種類","readings":["しゅるい"]},{"surface":"春","readings":["はる"]},{"surface":"瞬間","readings":["しゅんかん"]},{"surface":"順序","readings":["じゅんじょ"]},{"surface":"準備","readings":["じゅんび"]},{"surface":"純粋","readings":["じゅんすい"]},{"surface":"小学校","readings":["しょうがっこう"]},{"surface":"紹介","readings":["しょうかい"]},{"surface":"衝撃","readings":["しょうげき"]},{"surface":"証拠","readings":["しょうこ"]},{"surface":"詳細","readings":["しょうさい"]},{"surface":"正直","readings":["しょうじき"]},{"surface":"少女","readings":["しょうじょ"]},{"surface":"少々","readings":["しょうしょう"]},{"surface":"招待","readings":["しょうたい"]},{"surface":"状態","readings":["じょうたい"]},{"surface":"冗談","readings":["じょうだん"]},{"surface":"商店","readings":["しょうてん"]},{"surface":"少年","readings":["しょうねん"]},{"surface":"商売","readings":["しょうばい"]},{"surface":"消費","readings":["しょうひ"]},{"surface":"商品","readings":["しょうひん"]},{"surface":"勝負","readings":["しょうぶ"]},{"surface":"消防","readings":["しょうぼう"]},{"surface":"情報","readings":["じょうほう"]},{"surface":"正面","readings":["しょうめん"]},{"surface":"将来","readings":["しょうらい"]},{"surface":"賞","readings":["しょう"]},{"surface":"賞金","readings":["しょうきん"]},{"surface":"障害","readings":["しょうがい"]},{"surface":"上級","readings":["じょうきゅう"]},{"surface":"状況","readings":["じょうきょう"]},{"surface":"条件","readings":["じょうけん"]},{"surface":"上司","readings":["じょうし"]},{"surface":"女王","readings":["じょおう"]},{"surface":"助詞","readings":["じょし"]},{"surface":"女性","readings":["じょせい"]},{"surface":"食事","readings":["しょくじ"]},{"surface":"食卓","readings":["しょくたく"]},{"surface":"食品","readings":["しょくひん"]},{"surface":"植物","readings":["しょくぶつ"]},{"surface":"食料","readings":["しょくりょう"]},{"surface":"署名","readings":["しょめい"]},{"surface":"書類","readings":["しょるい"]},{"surface":"白","readings":["しろ"]},{"surface":"城","readings":["しろ"]},{"surface":"新聞","readings":["しんぶん"]},{"surface":"心配","readings":["しんぱい"]},{"surface":"信号","readings":["しんごう"]},{"surface":"親友","readings":["しんゆう"]},{"surface":"深夜","readings":["しんや"]},{"surface":"進化","readings":["しんか"]},{"surface":"真空","readings":["しんくう"]},{"surface":"神経","readings":["しんけい"]},{"surface":"申告","readings":["しんこく"]},{"surface":"診察","readings":["しんさつ"]},{"surface":"人種","readings":["じんしゅ"]},{"surface":"人生","readings":["じんせい"]},{"surface":"人物","readings":["じんぶつ"]},{"surface":"人民","readings":["じんみん"]},{"surface":"深夜番組","readings":["しんやばんぐみ"]},{"surface":"シリーズ","readings":["しりーず"]},{"surface":"シール","readings":["しーる"]},{"surface":"システム","readings":["しすてむ"]},{"surface":"シナリオ","readings":["しなりお"]},{"surface":"シティ","readings":["してぃ"]},{"surface":"ジャーナリスト","readings":["じゃーなりすと"]},{"surface":"ジャム","readings":["じゃむ"]},{"surface":"ジュース","readings":["じゅーす"]},{"surface":"ジム","readings":["じむ"]},{"surface":"ジョーク","readings":["じょーく"]},{"surface":"ショップ","readings":["しょっぷ"]},{"surface":"シルバー","readings":["しるばー"]},{"surface":"シンプル","readings":["しんぷる"]},{"surface":"字","readings":["じ"]},{"surface":"時間","readings":["じかん"]},{"surface":"時給","readings":["じきゅう"]},{"surface":"事件","readings":["じけん"]},{"surface":"時刻","readings":["じこく"]},{"surface":"事故","readings":["じこ"]},{"surface":"自殺","readings":["じさつ"]},{"surface":"自身","readings":["じしん"]},{"surface":"時代","readings":["じだい"]},{"surface":"自体","readings":["じたい"]},{"surface":"次長","readings":["じちょう"]},{"surface":"実","readings":["じつ","み"]},{"surface":"実力","readings":["じつりょく"]},{"surface":"実務","readings":["じつむ"]},{"surface":"指定","readings":["してい"]},{"surface":"自動車","readings":["じどうしゃ"]},{"surface":"自分","readings":["じぶん"]},{"surface":"地元","readings":["じもと"]},{"surface":"弱点","readings":["じゃくてん"]},{"surface":"邪魔","readings":["じゃま"]},{"surface":"十","readings":["じゅう"]},{"surface":"重さ","readings":["おもさ"]},{"surface":"自由","readings":["じゆう"]},{"surface":"十字路","readings":["じゅうじろ"]},{"surface":"重量","readings":["じゅうりょう"]},{"surface":"塾","readings":["じゅく"]},{"surface":"受験","readings":["じゅけん"]},{"surface":"受信","readings":["じゅしん"]},{"surface":"受取","readings":["うけとり"]},{"surface":"需要","readings":["じゅよう"]},{"surface":"授業","readings":["じゅぎょう"]},{"surface":"順位","readings":["じゅんい"]},{"surface":"循環","readings":["じゅんかん"]},{"surface":"順調","readings":["じゅんちょう"]},{"surface":"徐行","readings":["じょこう"]},{"surface":"助手","readings":["じょしゅ"]},{"surface":"除外","readings":["じょがい"]},{"surface":"女優","readings":["じょゆう"]},{"surface":"自立","readings":["じりつ"]},{"surface":"陣","readings":["じん"]},{"surface":"神社","readings":["じんじゃ"]},{"surface":"人類","readings":["じんるい"]},{"surface":"酢","readings":["す"]},{"surface":"図","readings":["ず"]},{"surface":"水","readings":["みず"]},{"surface":"水曜日","readings":["すいようび"]},{"surface":"水管","readings":["すいかん"]},{"surface":"水泳","readings":["すいえい"]},{"surface":"水準","readings":["すいじゅん"]},{"surface":"水蒸気","readings":["すいじょうき"]},{"surface":"水素","readings":["すいそ"]},{"surface":"推定","readings":["すいてい"]},{"surface":"睡眠","readings":["すいみん"]},{"surface":"数学","readings":["すうがく"]},{"surface":"数字","readings":["すうじ"]},{"surface":"数量","readings":["すうりょう"]},{"surface":"好き","readings":["すき"]},{"surface":"隙間","readings":["すきま"]},{"surface":"スクーター","readings":["すくーたー"]},{"surface":"スクリーン","readings":["すくりーん"]},{"surface":"スケジュール","readings":["すけじゅーる"]},{"surface":"すごい","readings":["すごい"]},{"surface":"筋","readings":["すじ"]},{"surface":"寿司","readings":["すし"]},{"surface":"進み","readings":["すすみ"]},{"surface":"裾","readings":["すそ"]},{"surface":"スタイル","readings":["すたいる"]},{"surface":"スター","readings":["すたー"]},{"surface":"スタジアム","readings":["すたじあむ"]},{"surface":"スタジオ","readings":["すたじお"]},{"surface":"スチーム","readings":["すちーむ"]},{"surface":"捨て","readings":["すて"]},{"surface":"ストーブ","readings":["すとーぶ"]},{"surface":"ストーリー","readings":["すとーりー"]},{"surface":"砂","readings":["すな"]},{"surface":"砂浜","readings":["すなはま"]},{"surface":"スニーカー","readings":["すにーかー"]},{"surface":"巣","readings":["す"]},{"surface":"スピーカー","readings":["すぴーかー"]},{"surface":"スピード","readings":["すぴーど"]},{"surface":"スプーン","readings":["すぷーん"]},{"surface":"全て","readings":["すべて"]},{"surface":"滑り","readings":["すべり"]},{"surface":"隅","readings":["すみ"]},{"surface":"墨","readings":["すみ"]},{"surface":"スムーズ","readings":["すむーず"]},{"surface":"スライス","readings":["すらいす"]},{"surface":"スライド","readings":["すらいど"]},{"surface":"スリープ","readings":["すりーぷ"]},{"surface":"スリッパ","readings":["すりっぱ"]},{"surface":"スローガン","readings":["すろーがん"]},{"surface":"座る","readings":["すわる"]},{"surface":"座る席","readings":["すわるせき"]},{"surface":"図鑑","readings":["ずかん"]},{"surface":"図形","readings":["ずけい"]},{"surface":"図面","readings":["ずめん"]},{"surface":"ずっと","readings":["ずっと"]},{"surface":"ズボン","readings":["ずぼん"]},{"surface":"背","readings":["せ"]},{"surface":"税","readings":["ぜい"]},{"surface":"性格","readings":["せいかく"]},{"surface":"正解","readings":["せいかい"]},{"surface":"生活","readings":["せいかつ"]},{"surface":"税金","readings":["ぜいきん"]},{"surface":"制限","readings":["せいげん"]},{"surface":"成功","readings":["せいこう"]},{"surface":"生産","readings":["せいさん"]},{"surface":"政治","readings":["せいじ"]},{"surface":"成績","readings":["せいせき"]},{"surface":"清掃","readings":["せいそう"]},{"surface":"成長","readings":["せいちょう"]},{"surface":"制度","readings":["せいど"]},{"surface":"青年","readings":["せいねん"]},{"surface":"製品","readings":["せいひん"]},{"surface":"生物","readings":["せいぶつ"]},{"surface":"声明","readings":["せいめい"]},{"surface":"整理","readings":["せいり"]},{"surface":"世界","readings":["せかい"]},{"surface":"席","readings":["せき"]},{"surface":"石炭","readings":["せきたん"]},{"surface":"責任","readings":["せきにん"]},{"surface":"石油","readings":["せきゆ"]},{"surface":"世帯","readings":["せたい"]},{"surface":"世代","readings":["せだい"]},{"surface":"説教","readings":["せっきょう"]},{"surface":"設計","readings":["せっけい"]},{"surface":"石鹸","readings":["せっけん"]},{"surface":"接近","readings":["せっきん"]},{"surface":"説明","readings":["せつめい"]},{"surface":"節約","readings":["せつやく"]},{"surface":"設備","readings":["せつび"]},{"surface":"瀬戸物","readings":["せともの"]},{"surface":"背中","readings":["せなか"]},{"surface":"背広","readings":["せびろ"]},{"surface":"世話","readings":["せわ"]},{"surface":"線","readings":["せん"]},{"surface":"全員","readings":["ぜんいん"]},{"surface":"選挙","readings":["せんきょ"]},{"surface":"先月","readings":["せんげつ"]},{"surface":"宣言","readings":["せんげん"]},{"surface":"専攻","readings":["せんこう"]},{"surface":"洗剤","readings":["せんざい"]},{"surface":"戦士","readings":["せんし"]},{"surface":"選手","readings":["せんしゅ"]},{"surface":"先週","readings":["せんしゅう"]},{"surface":"前進","readings":["ぜんしん"]},{"surface":"先生","readings":["せんせい"]},{"surface":"戦争","readings":["せんそう"]},{"surface":"全体","readings":["ぜんたい"]},{"surface":"選択","readings":["せんたく"]},{"surface":"洗濯","readings":["せんたく"]},{"surface":"先端","readings":["せんたん"]},{"surface":"宣伝","readings":["せんでん"]},{"surface":"先輩","readings":["せんぱい"]},{"surface":"扇風機","readings":["せんぷうき"]},{"surface":"専門","readings":["せんもん"]},{"surface":"線路","readings":["せんろ"]},{"surface":"ゼロ","readings":["ぜろ"]},{"surface":"全般","readings":["ぜんぱん"]},{"surface":"全国","readings":["ぜんこく"]},{"surface":"前回","readings":["ぜんかい"]},{"surface":"前回比","readings":["ぜんかいひ"]},{"surface":"セール","readings":["せーる"]},{"surface":"セーター","readings":["せーたー"]},{"surface":"セット","readings":["せっと"]},{"surface":"センター","readings":["せんたー"]},{"surface":"ゼリー","readings":["ぜりー"]},{"surface":"セル","readings":["せる"]},{"surface":"センサー","readings":["せんさー"]},{"surface":"田","readings":["た"]},{"surface":"他","readings":["た"]},{"surface":"対","readings":["たい"]},{"surface":"台","readings":["だい"]},{"surface":"大学","readings":["だいがく"]},{"surface":"大切","readings":["たいせつ"]},{"surface":"大使","readings":["たいし"]},{"surface":"体重","readings":["たいじゅう"]},{"surface":"対象","readings":["たいしょう"]},{"surface":"対峙","readings":["たいじ"]},{"surface":"大戦","readings":["たいせん"]},{"surface":"体調","readings":["たいちょう"]},{"surface":"大抵","readings":["たいてい"]},{"surface":"態度","readings":["たいど"]},{"surface":"対比","readings":["たいひ"]},{"surface":"台風","readings":["たいふう"]},{"surface":"大変","readings":["たいへん"]},{"surface":"太陽","readings":["たいよう"]},{"surface":"平ら","readings":["たいら"]},{"surface":"対話","readings":["たいわ"]},{"surface":"タオル","readings":["たおる"]},{"surface":"高値","readings":["たかね"]},{"surface":"宝","readings":["たから"]},{"surface":"滝","readings":["たき"]},{"surface":"宅","readings":["たく"]},{"surface":"沢山","readings":["たくさん"]},{"surface":"竹","readings":["たけ"]},{"surface":"建物","readings":["たてもの"]},{"surface":"縦","readings":["たて"]},{"surface":"たとえ","readings":["たとえ"]},{"surface":"棚","readings":["たな"]},{"surface":"他人","readings":["たにん"]},{"surface":"種","readings":["たね"]},{"surface":"楽しみ","readings":["たのしみ"]},{"surface":"旅","readings":["たび"]},{"surface":"多分","readings":["たぶん"]},{"surface":"卵","readings":["たまご"]},{"surface":"玉","readings":["たま"]},{"surface":"魂","readings":["たましい"]},{"surface":"試し","readings":["ためし"]},{"surface":"為","readings":["ため"]},{"surface":"タレント","readings":["たれんと"]},{"surface":"単位","readings":["たんい"]},{"surface":"単語","readings":["たんご"]},{"surface":"男子","readings":["だんし"]},{"surface":"団体","readings":["だんたい"]},{"surface":"誕生","readings":["たんじょう"]},{"surface":"短所","readings":["たんしょ"]},{"surface":"単調","readings":["たんちょう"]},{"surface":"担当","readings":["たんとう"]},{"surface":"単なる","readings":["たんなる"]},{"surface":"暖房","readings":["だんぼう"]},{"surface":"談話","readings":["だんわ"]},{"surface":"タクシー","readings":["たくしー"]},{"surface":"タイム","readings":["たいむ"]},{"surface":"タイトル","readings":["たいとる"]},{"surface":"タイプ","readings":["たいぷ"]},{"surface":"ダイヤモンド","readings":["だいやもんど"]},{"surface":"ダイエット","readings":["だいえっと"]},{"surface":"ダウン","readings":["だうん"]},{"surface":"打者","readings":["だしゃ"]},{"surface":"打撃","readings":["だげき"]},{"surface":"駄目","readings":["だめ"]},{"surface":"誰","readings":["だれ"]},{"surface":"段","readings":["だん"]},{"surface":"段階","readings":["だんかい"]},{"surface":"男子校","readings":["だんしこう"]},{"surface":"男性","readings":["だんせい"]},{"surface":"断水","readings":["だんすい"]},{"surface":"団体戦","readings":["だんたいせん"]},{"surface":"血","readings":["ち"]},{"surface":"地位","readings":["ちい"]},{"surface":"地域","readings":["ちいき"]},{"surface":"知恵","readings":["ちえ"]},{"surface":"地下","readings":["ちか"]},{"surface":"近い","readings":["ちかい"]},{"surface":"力","readings":["ちから"]},{"surface":"地球","readings":["ちきゅう"]},{"surface":"遅刻","readings":["ちこく"]},{"surface":"知識","readings":["ちしき"]},{"surface":"地図","readings":["ちず"]},{"surface":"父親","readings":["ちちおや","ちち"]},{"surface":"窒素","readings":["ちっそ"]},{"surface":"地点","readings":["ちてん"]},{"surface":"知能","readings":["ちのう"]},{"surface":"茶","readings":["ちゃ"]},{"surface":"茶色","readings":["ちゃいろ"]},{"surface":"チャンス","readings":["ちゃんす"]},{"surface":"チャンネル","readings":["ちゃんねる"]},{"surface":"注意","readings":["ちゅうい"]},{"surface":"中央","readings":["ちゅうおう"]},{"surface":"中学","readings":["ちゅうがく"]},{"surface":"中級","readings":["ちゅうきゅう"]},{"surface":"中止","readings":["ちゅうし"]},{"surface":"駐車場","readings":["ちゅうしゃじょう"]},{"surface":"中心","readings":["ちゅうしん"]},{"surface":"抽選","readings":["ちゅうせん"]},{"surface":"中途","readings":["ちゅうと"]},{"surface":"注目","readings":["ちゅうもく"]},{"surface":"注文","readings":["ちゅうもん"]},{"surface":"長","readings":["ちょう"]},{"surface":"庁","readings":["ちょう"]},{"surface":"超","readings":["ちょう"]},{"surface":"調子","readings":["ちょうし"]},{"surface":"調査","readings":["ちょうさ"]},{"surface":"長所","readings":["ちょうしょ"]},{"surface":"挑戦","readings":["ちょうせん"]},{"surface":"朝食","readings":["ちょうしょく"]},{"surface":"町","readings":["まち"]},{"surface":"蝶","readings":["ちょう"]},{"surface":"貯金","readings":["ちょきん"]},{"surface":"直後","readings":["ちょくご"]},{"surface":"直接","readings":["ちょくせつ"]},{"surface":"直線","readings":["ちょくせん"]},{"surface":"著者","readings":["ちょしゃ"]},{"surface":"地理","readings":["ちり"]},{"surface":"賃金","readings":["ちんぎん"]},{"surface":"チーム","readings":["ちーむ"]},{"surface":"チーズ","readings":["ちーず"]},{"surface":"チケット","readings":["ちけっと"]},{"surface":"チキン","readings":["ちきん"]},{"surface":"チップ","readings":["ちっぷ"]},{"surface":"チョコレート","readings":["ちょこれーと"]},{"surface":"チャレンジ","readings":["ちゃれんじ"]},{"surface":"チューリップ","readings":["ちゅーりっぷ"]},{"surface":"ツイッター","readings":["ついったー"]},{"surface":"杖","readings":["つえ"]},{"surface":"追加","readings":["ついか"]},{"surface":"通行","readings":["つうこう"]},{"surface":"通信","readings":["つうしん"]},{"surface":"通訳","readings":["つうやく"]},{"surface":"通路","readings":["つうろ"]},{"surface":"使い","readings":["つかい"]},{"surface":"掴み","readings":["つかみ"]},{"surface":"月","readings":["つき"]},{"surface":"次","readings":["つぎ"]},{"surface":"継ぎ","readings":["つぎ"]},{"surface":"作り","readings":["つくり"]},{"surface":"付け","readings":["つけ"]},{"surface":"都合","readings":["つごう"]},{"surface":"土","readings":["つち"]},{"surface":"続き","readings":["つづき"]},{"surface":"包み","readings":["つつみ"]},{"surface":"務め","readings":["つとめ"]},{"surface":"津波","readings":["つなみ"]},{"surface":"翼","readings":["つばさ"]},{"surface":"粒","readings":["つぶ"]},{"surface":"妻","readings":["つま"]},{"surface":"罪","readings":["つみ"]},{"surface":"爪","readings":["つめ"]},{"surface":"積もり","readings":["つもり"]},{"surface":"梅雨","readings":["つゆ"]},{"surface":"強さ","readings":["つよさ"]},{"surface":"面","readings":["つら","めん"]},{"surface":"釣り","readings":["つり"]},{"surface":"鶴","readings":["つる"]},{"surface":"ツール","readings":["つーる"]},{"surface":"ツアー","readings":["つあー"]},{"surface":"手","readings":["て"]},{"surface":"低","readings":["てい"]},{"surface":"定員","readings":["ていいん"]},{"surface":"提案","readings":["ていあん"]},{"surface":"定価","readings":["ていか"]},{"surface":"定期","readings":["ていき"]},{"surface":"抵抗","readings":["ていこう"]},{"surface":"停車","readings":["ていしゃ"]},{"surface":"提出","readings":["ていしゅつ"]},{"surface":"定数","readings":["ていすう"]},{"surface":"程度","readings":["ていど"]},{"surface":"定点","readings":["ていてん"]},{"surface":"定年","readings":["ていねん"]},{"surface":"邸宅","readings":["ていたく"]},{"surface":"停留所","readings":["ていりゅうじょ"]},{"surface":"手入れ","readings":["ていれ"]},{"surface":"敵","readings":["てき"]},{"surface":"適性","readings":["てきせい"]},{"surface":"手首","readings":["てくび"]},{"surface":"手順","readings":["てじゅん"]},{"surface":"手帳","readings":["てちょう"]},{"surface":"鉄道","readings":["てつどう"]},{"surface":"徹夜","readings":["てつや"]},{"surface":"手ぬぐい","readings":["てぬぐい"]},{"surface":"手札","readings":["てふだ"]},{"surface":"手間","readings":["てま"]},{"surface":"寺","readings":["てら"]},{"surface":"テレビ","readings":["てれび"]},{"surface":"テレビ局","readings":["てれびきょく"]},{"surface":"点","readings":["てん"]},{"surface":"店員","readings":["てんいん"]},{"surface":"転換","readings":["てんかん"]},{"surface":"天気","readings":["てんき"]},{"surface":"電気","readings":["でんき"]},{"surface":"電源","readings":["でんげん"]},{"surface":"天国","readings":["てんごく"]},{"surface":"天才","readings":["てんさい"]},{"surface":"電車","readings":["でんしゃ"]},{"surface":"天井","readings":["てんじょう"]},{"surface":"点数","readings":["てんすう"]},{"surface":"伝達","readings":["でんたつ"]},{"surface":"伝統","readings":["でんとう"]},{"surface":"天然","readings":["てんねん"]},{"surface":"電報","readings":["でんぽう"]},{"surface":"店舗","readings":["てんぽ"]},{"surface":"電波","readings":["でんぱ"]},{"surface":"電話","readings":["でんわ"]},{"surface":"テープ","readings":["てーぷ"]},{"surface":"テーブル","readings":["てーぶる"]},{"surface":"テーマ","readings":["てーま"]},{"surface":"テキスト","readings":["てきすと"]},{"surface":"テスト","readings":["てすと"]},{"surface":"テニス","readings":["てにす"]},{"surface":"テント","readings":["てんと"]},{"surface":"デパート","readings":["でぱーと"]},{"surface":"データ","readings":["でーた"]},{"surface":"デート","readings":["でーと"]},{"surface":"ドア","readings":["どあ"]},{"surface":"ドイツ","readings":["どいつ"]},{"surface":"どら焼き","readings":["どらやき"]},{"surface":"戸","readings":["と"]},{"surface":"都","readings":["と","みやこ"]},{"surface":"問い","readings":["とい"]},{"surface":"答案","readings":["とうあん"]},{"surface":"統一","readings":["とういつ"]},{"surface":"東","readings":["ひがし"]},{"surface":"投球","readings":["とうきゅう"]},{"surface":"統計","readings":["とうけい"]},{"surface":"登校","readings":["とうこう"]},{"surface":"統合","readings":["とうごう"]},{"surface":"東西","readings":["とうざい"]},{"surface":"当時","readings":["とうじ"]},{"surface":"投手","readings":["とうしゅ"]},{"surface":"登場","readings":["とうじょう"]},{"surface":"当選","readings":["とうせん"]},{"surface":"灯台","readings":["とうだい"]},{"surface":"到底","readings":["とうてい"]},{"surface":"当店","readings":["とうてん"]},{"surface":"盗難","readings":["とうなん"]},{"surface":"投票","readings":["とうひょう"]},{"surface":"豆腐","readings":["とうふ"]},{"surface":"透明","readings":["とうめい"]},{"surface":"同僚","readings":["どうりょう"]},{"surface":"道路","readings":["どうろ"]},{"surface":"通り","readings":["とおり"]},{"surface":"十日","readings":["とおか"]},{"surface":"時々","readings":["ときどき"]},{"surface":"時折","readings":["ときおり"]},{"surface":"特技","readings":["とくぎ"]},{"surface":"特色","readings":["とくしょく"]},{"surface":"特徴","readings":["とくちょう"]},{"surface":"特典","readings":["とくてん"]},{"surface":"特別","readings":["とくべつ"]},{"surface":"独立","readings":["どくりつ"]},{"surface":"時計","readings":["とけい"]},{"surface":"どこ","readings":["どこ"]},{"surface":"登山","readings":["とざん"]},{"surface":"都市","readings":["とし"]},{"surface":"図書館","readings":["としょかん"]},{"surface":"土地","readings":["とち"]},{"surface":"途中","readings":["とちゅう"]},{"surface":"特許","readings":["とっきょ"]},{"surface":"特急","readings":["とっきゅう"]},{"surface":"突然","readings":["とつぜん"]},{"surface":"届き","readings":["とどき"]},{"surface":"隣","readings":["となり"]},{"surface":"扉","readings":["とびら"]},{"surface":"土木","readings":["どぼく"]},{"surface":"友達","readings":["ともだち"]},{"surface":"共","readings":["とも"]},{"surface":"虎","readings":["とら"]},{"surface":"トラック","readings":["とらっく"]},{"surface":"鳥","readings":["とり"]},{"surface":"努力","readings":["どりょく"]},{"surface":"奴隷","readings":["どれい"]},{"surface":"トン","readings":["とん"]},{"surface":"豚","readings":["ぶた"]},{"surface":"トンネル","readings":["とんねる"]},{"surface":"トースト","readings":["とーすと"]},{"surface":"トーク","readings":["とーく"]},{"surface":"トマト","readings":["とまと"]},{"surface":"ドラマ","readings":["どらま"]},{"surface":"ドリンク","readings":["どりんく"]},{"surface":"ドレス","readings":["どれす"]},{"surface":"ドル","readings":["どる"]},{"surface":"ドーム","readings":["どーむ"]},{"surface":"動画","readings":["どうが"]},{"surface":"道具","readings":["どうぐ"]},{"surface":"動作","readings":["どうさ"]},{"surface":"動詞","readings":["どうし"]},{"surface":"同情","readings":["どうじょう"]},{"surface":"どうせ","readings":["どうせ"]},{"surface":"道徳","readings":["どうとく"]},{"surface":"動物","readings":["どうぶつ"]},{"surface":"同盟","readings":["どうめい"]},{"surface":"道理","readings":["どうり"]},{"surface":"銅","readings":["どう"]},{"surface":"名","readings":["な","めい"]},{"surface":"菜","readings":["な"]},{"surface":"内科","readings":["ないか"]},{"surface":"内閣","readings":["ないかく"]},{"surface":"内線","readings":["ないせん"]},{"surface":"内容","readings":["ないよう"]},{"surface":"内部","readings":["ないぶ"]},{"surface":"ナイロン","readings":["ないろん"]},{"surface":"直","readings":["なお"]},{"surface":"中","readings":["なか"]},{"surface":"仲","readings":["なか"]},{"surface":"仲直り","readings":["なかなおり"]},{"surface":"流し","readings":["ながし"]},{"surface":"長さ","readings":["ながさ"]},{"surface":"眺め","readings":["ながめ"]},{"surface":"泣き","readings":["なき"]},{"surface":"鳴き声","readings":["なきごえ"]},{"surface":"梨","readings":["なし"]},{"surface":"無し","readings":["なし"]},{"surface":"謎","readings":["なぞ"]},{"surface":"夏","readings":["なつ"]},{"surface":"夏休み","readings":["なつやすみ"]},{"surface":"納豆","readings":["なっとう"]},{"surface":"鍋","readings":["なべ"]},{"surface":"名前","readings":["なまえ"]},{"surface":"波","readings":["なみ"]},{"surface":"涙","readings":["なみだ"]},{"surface":"悩み","readings":["なやみ"]},{"surface":"何","readings":["なに"]},{"surface":"七日","readings":["なのか"]},{"surface":"名乗り","readings":["なのり"]},{"surface":"生","readings":["なま"]},{"surface":"生魚","readings":["なまざかな"]},{"surface":"生地","readings":["きじ"]},{"surface":"鉛","readings":["なまり"]},{"surface":"波止場","readings":["なみきば"]},{"surface":"南","readings":["みなみ"]},{"surface":"並み","readings":["なみ"]},{"surface":"なめらか","readings":["なめらか"]},{"surface":"鳴り","readings":["なり"]},{"surface":"慣れ","readings":["なれ"]},{"surface":"縄","readings":["なわ"]},{"surface":"何人","readings":["なんにん"]},{"surface":"南北","readings":["なんぼく"]},{"surface":"何日","readings":["なんにち"]},{"surface":"何年","readings":["なんねん"]},{"surface":"ナンバー","readings":["なんばー"]},{"surface":"ナイフ","readings":["ないふ"]},{"surface":"ナイト","readings":["ないと"]},{"surface":"ナプキン","readings":["なぷきん"]},{"surface":"二","readings":["に"]},{"surface":"荷","readings":["に"]},{"surface":"匂い","readings":["におい"]},{"surface":"似顔","readings":["にがお"]},{"surface":"苦手","readings":["にがて"]},{"surface":"賑わい","readings":["にぎわい"]},{"surface":"肉","readings":["にく"]},{"surface":"憎しみ","readings":["にくしみ"]},{"surface":"西","readings":["にし"]},{"surface":"虹","readings":["にじ"]},{"surface":"日常","readings":["にちじょう"]},{"surface":"日曜日","readings":["にちようび"]},{"surface":"日照","readings":["にっしょう"]},{"surface":"日中","readings":["にっちゅう"]},{"surface":"日程","readings":["にってい"]},{"surface":"荷物","readings":["にもつ"]},{"surface":"入院","readings":["にゅういん"]},{"surface":"入学","readings":["にゅうがく"]},{"surface":"入社","readings":["にゅうしゃ"]},{"surface":"入場","readings":["にゅうじょう"]},{"surface":"入力","readings":["にゅうりょく"]},{"surface":"ニュース","readings":["にゅーす"]},{"surface":"庭","readings":["にわ"]},{"surface":"人形","readings":["にんぎょう"]},{"surface":"人間","readings":["にんげん"]},{"surface":"人気","readings":["にんき"]},{"surface":"人数","readings":["にんずう"]},{"surface":"忍耐","readings":["にんたい"]},{"surface":"認知","readings":["にんち"]},{"surface":"任","readings":["にん"]},{"surface":"任務","readings":["にんむ"]},{"surface":"ニンジン","readings":["にんじん"]},{"surface":"ニックネーム","readings":["にっくねーむ"]},{"surface":"ニーズ","readings":["にーず"]},{"surface":"ニュアンス","readings":["にゅあんす"]},{"surface":"ニューヨーク","readings":["にゅーよーく"]},{"surface":"布","readings":["ぬの"]},{"surface":"沼","readings":["ぬま"]},{"surface":"盗み","readings":["ぬすみ"]},{"surface":"濡れ","readings":["ぬれ"]},{"surface":"ヌードル","readings":["ぬーどる"]},{"surface":"根","readings":["ね"]},{"surface":"値","readings":["ね"]},{"surface":"願い","readings":["ねがい"]},{"surface":"寝具","readings":["ねぐ"]},{"surface":"猫","readings":["ねこ"]},{"surface":"値段","readings":["ねだん"]},{"surface":"熱","readings":["ねつ"]},{"surface":"熱帯","readings":["ねったい"]},{"surface":"年間","readings":["ねんかん"]},{"surface":"年月","readings":["ねんげつ"]},{"surface":"年中","readings":["ねんじゅう"]},{"surface":"年代","readings":["ねんだい"]},{"surface":"年末","readings":["ねんまつ"]},{"surface":"年齢","readings":["ねんれい"]},{"surface":"燃焼","readings":["ねんしょう"]},{"surface":"燃料","readings":["ねんりょう"]},{"surface":"念","readings":["ねん"]},{"surface":"ネガ","readings":["ねが"]},{"surface":"ネクタイ","readings":["ねくたい"]},{"surface":"ネット","readings":["ねっと"]},{"surface":"ネットワーク","readings":["ねっとわーく"]},{"surface":"ノート","readings":["のーと"]},{"surface":"野","readings":["の"]},{"surface":"能","readings":["のう"]},{"surface":"農園","readings":["のうえん"]},{"surface":"農家","readings":["のうか"]},{"surface":"農業","readings":["のうぎょう"]},{"surface":"能力","readings":["のうりょく"]},{"surface":"軒","readings":["のき"]},{"surface":"残し","readings":["のこし"]},{"surface":"望み","readings":["のぞみ"]},{"surface":"喉","readings":["のど"]},{"surface":"伸ばし","readings":["のばし"]},{"surface":"延ばし","readings":["のばし"]},{"surface":"野原","readings":["のはら"]},{"surface":"乗り","readings":["のり"]},{"surface":"乗り物","readings":["のりもの"]},{"surface":"糊","readings":["のり"]},{"surface":"ノルマ","readings":["のるま"]},{"surface":"のんびり","readings":["のんびり"]},{"surface":"葉","readings":["は"]},{"surface":"歯","readings":["は"]},{"surface":"場","readings":["ば"]},{"surface":"灰","readings":["はい"]},{"surface":"俳優","readings":["はいゆう"]},{"surface":"灰色","readings":["はいいろ"]},{"surface":"廃棄","readings":["はいき"]},{"surface":"配給","readings":["はいきゅう"]},{"surface":"背景","readings":["はいけい"]},{"surface":"廃止","readings":["はいし"]},{"surface":"歯医者","readings":["はいしゃ"]},{"surface":"配達","readings":["はいたつ"]},{"surface":"配置","readings":["はいち"]},{"surface":"パイプ","readings":["ぱいぷ"]},{"surface":"パイロット","readings":["ぱいろっと"]},{"surface":"墓","readings":["はか"]},{"surface":"博士","readings":["はかせ"]},{"surface":"測り","readings":["はかり"]},{"surface":"拍手","readings":["はくしゅ"]},{"surface":"白菜","readings":["はくさい"]},{"surface":"白書","readings":["はくしょ"]},{"surface":"莫大","readings":["ばくだい"]},{"surface":"爆弾","readings":["ばくだん"]},{"surface":"爆発","readings":["ばくはつ"]},{"surface":"箱","readings":["はこ"]},{"surface":"鋏","readings":["はさみ"]},{"surface":"柱","readings":["はしら"]},{"surface":"端","readings":["はし"]},{"surface":"橋","readings":["はし"]},{"surface":"走り","readings":["はしり"]},{"surface":"筈","readings":["はず"]},{"surface":"旗","readings":["はた"]},{"surface":"肌","readings":["はだ"]},{"surface":"畑","readings":["はたけ"]},{"surface":"二十日","readings":["はつか"]},{"surface":"発音","readings":["はつおん"]},{"surface":"発見","readings":["はっけん"]},{"surface":"発行","readings":["はっこう"]},{"surface":"発射","readings":["はっしゃ"]},{"surface":"発生","readings":["はっせい"]},{"surface":"発達","readings":["はったつ"]},{"surface":"発展","readings":["はってん"]},{"surface":"発表","readings":["はっぴょう"]},{"surface":"発明","readings":["はつめい"]},{"surface":"初","readings":["はつ"]},{"surface":"花見","readings":["はなみ"]},{"surface":"花","readings":["はな"]},{"surface":"鼻","readings":["はな"]},{"surface":"話","readings":["はなし"]},{"surface":"花火","readings":["はなび"]},{"surface":"母親","readings":["ははおや"]},{"surface":"幅","readings":["はば"]},{"surface":"浜辺","readings":["はまべ"]},{"surface":"早口","readings":["はやくち"]},{"surface":"速さ","readings":["はやさ"]},{"surface":"流行","readings":["はやし","りゅうこう"]},{"surface":"腹","readings":["はら"]},{"surface":"原","readings":["はら"]},{"surface":"針","readings":["はり"]},{"surface":"晴れ","readings":["はれ"]},{"surface":"範囲","readings":["はんい"]},{"surface":"反映","readings":["はんえい"]},{"surface":"半径","readings":["はんけい"]},{"surface":"判決","readings":["はんけつ"]},{"surface":"犯行","readings":["はんこう"]},{"surface":"犯罪","readings":["はんざい"]},{"surface":"反則","readings":["はんそく"]},{"surface":"判断","readings":["はんだん"]},{"surface":"半島","readings":["はんとう"]},{"surface":"反応","readings":["はんのう"]},{"surface":"販売","readings":["はんばい"]},{"surface":"犯人","readings":["はんにん"]},{"surface":"半分","readings":["はんぶん"]},{"surface":"反論","readings":["はんろん"]},{"surface":"パン","readings":["ぱん"]},{"surface":"パンダ","readings":["ぱんだ"]},{"surface":"パンツ","readings":["ぱんつ"]},{"surface":"ハンドバッグ","readings":["はんどばっぐ"]},{"surface":"ハンバーガー","readings":["はんばーがー"]},{"surface":"バイオリン","readings":["ばいおりん"]},{"surface":"バイク","readings":["ばいく"]},{"surface":"バイト","readings":["ばいと"]},{"surface":"バッグ","readings":["ばっぐ"]},{"surface":"バッテリー","readings":["ばってりー"]},{"surface":"バルコニー","readings":["ばるこにー"]},{"surface":"バンド","readings":["ばんど"]},{"surface":"パーセント","readings":["ぱーせんと"]},{"surface":"パーティー","readings":["ぱーてぃー"]},{"surface":"パートナー","readings":["ぱーとなー"]},{"surface":"パワー","readings":["ぱわー"]},{"surface":"パンフレット","readings":["ぱんふれっと"]},{"surface":"日","readings":["ひ"]},{"surface":"火","readings":["ひ"]},{"surface":"碑","readings":["ひ"]},{"surface":"美","readings":["び"]},{"surface":"非","readings":["ひ"]},{"surface":"比較","readings":["ひかく"]},{"surface":"引き","readings":["ひき"]},{"surface":"悲劇","readings":["ひげき"]},{"surface":"飛行機","readings":["ひこうき"]},{"surface":"膝","readings":["ひざ"]},{"surface":"肘","readings":["ひじ"]},{"surface":"比重","readings":["ひじゅう"]},{"surface":"美術館","readings":["びじゅつかん"]},{"surface":"非常","readings":["ひじょう"]},{"surface":"額","readings":["ひたい"]},{"surface":"日付","readings":["ひづけ"]},{"surface":"必需","readings":["ひつじゅ"]},{"surface":"必要","readings":["ひつよう"]},{"surface":"人","readings":["ひと"]},{"surface":"一言","readings":["ひとこと"]},{"surface":"人込み","readings":["ひとごみ"]},{"surface":"等しい","readings":["ひとしい"]},{"surface":"独り","readings":["ひとり"]},{"surface":"一人","readings":["ひとり"]},{"surface":"批判","readings":["ひはん"]},{"surface":"批評","readings":["ひひょう"]},{"surface":"暇","readings":["ひま"]},{"surface":"悲鳴","readings":["ひめい"]},{"surface":"百","readings":["ひゃく"]},{"surface":"百科","readings":["ひゃっか"]},{"surface":"費用","readings":["ひよう"]},{"surface":"表","readings":["ひょう"]},{"surface":"秒","readings":["びょう"]},{"surface":"病院","readings":["びょういん"]},{"surface":"病気","readings":["びょうき"]},{"surface":"表情","readings":["ひょうじょう"]},{"surface":"平等","readings":["びょうどう"]},{"surface":"評判","readings":["ひょうばん"]},{"surface":"表面","readings":["ひょうめん"]},{"surface":"平仮名","readings":["ひらがな"]},{"surface":"昼","readings":["ひる"]},{"surface":"昼ご飯","readings":["ひるごはん"]},{"surface":"昼寝","readings":["ひるね"]},{"surface":"比例","readings":["ひれい"]},{"surface":"広さ","readings":["ひろさ"]},{"surface":"便","readings":["びん"]},{"surface":"瓶","readings":["びん"]},{"surface":"品質","readings":["ひんしつ"]},{"surface":"貧乏","readings":["びんぼう"]},{"surface":"ヒント","readings":["ひんと"]},{"surface":"ビール","readings":["びーる"]},{"surface":"ピアノ","readings":["ぴあの"]},{"surface":"ピクニック","readings":["ぴくにっく"]},{"surface":"ビデオ","readings":["びでお"]},{"surface":"ビル","readings":["びる"]},{"surface":"ピンク","readings":["ぴんく"]},{"surface":"ピザ","readings":["ぴざ"]},{"surface":"ビジネス","readings":["びじねす"]},{"surface":"歩","readings":["ふ","ほ"]},{"surface":"府","readings":["ふ"]},{"surface":"負","readings":["ふ"]},{"surface":"不安","readings":["ふあん"]},{"surface":"風景","readings":["ふうけい"]},{"surface":"封筒","readings":["ふうとう"]},{"surface":"夫婦","readings":["ふうふ"]},{"surface":"笛","readings":["ふえ"]},{"surface":"深み","readings":["ふかみ"]},{"surface":"武器","readings":["ぶき"]},{"surface":"符号","readings":["ふごう"]},{"surface":"塞ぎ","readings":["ふさぎ"]},{"surface":"節","readings":["ふし"]},{"surface":"不思議","readings":["ふしぎ"]},{"surface":"夫人","readings":["ふじん"]},{"surface":"婦人","readings":["ふじん"]},{"surface":"不正","readings":["ふせい"]},{"surface":"不足","readings":["ふそく"]},{"surface":"蓋","readings":["ふた"]},{"surface":"二人","readings":["ふたり"]},{"surface":"普段","readings":["ふだん"]},{"surface":"縁","readings":["ふち"]},{"surface":"普通","readings":["ふつう"]},{"surface":"物価","readings":["ぶっか"]},{"surface":"物質","readings":["ぶっしつ"]},{"surface":"物理","readings":["ぶつり"]},{"surface":"筆","readings":["ふで"]},{"surface":"船","readings":["ふね"]},{"surface":"部品","readings":["ぶひん"]},{"surface":"部分","readings":["ぶぶん"]},{"surface":"不満","readings":["ふまん"]},{"surface":"踏み","readings":["ふみ"]},{"surface":"部門","readings":["ぶもん"]},{"surface":"冬","readings":["ふゆ"]},{"surface":"不要","readings":["ふよう"]},{"surface":"振り","readings":["ふり"]},{"surface":"不利","readings":["ふり"]},{"surface":"古着","readings":["ふるぎ"]},{"surface":"文化","readings":["ぶんか"]},{"surface":"文学","readings":["ぶんがく"]},{"surface":"文書","readings":["ぶんしょ"]},{"surface":"分数","readings":["ぶんすう"]},{"surface":"文章","readings":["ぶんしょう"]},{"surface":"文体","readings":["ぶんたい"]},{"surface":"分担","readings":["ぶんたん"]},{"surface":"分配","readings":["ぶんぱい"]},{"surface":"分量","readings":["ぶんりょう"]},{"surface":"分類","readings":["ぶんるい"]},{"surface":"分析","readings":["ぶんせき"]},{"surface":"分野","readings":["ぶんや"]},{"surface":"プール","readings":["ぷーる"]},{"surface":"フィルム","readings":["ふぃるむ"]},{"surface":"フォーク","readings":["ふぉーく"]},{"surface":"フォント","readings":["ふぉんと"]},{"surface":"フォーム","readings":["ふぉーむ"]},{"surface":"不安感","readings":["ふあんかん"]},{"surface":"風船","readings":["ふうせん"]},{"surface":"風俗","readings":["ふうぞく"]},{"surface":"風味","readings":["ふうみ"]},{"surface":"部下","readings":["ぶか"]},{"surface":"武器庫","readings":["ぶきこ"]},{"surface":"複雑","readings":["ふくざつ"]},{"surface":"服装","readings":["ふくそう"]},{"surface":"含む","readings":["ふくむ"]},{"surface":"袋","readings":["ふくろ"]},{"surface":"不幸","readings":["ふこう"]},{"surface":"富士山","readings":["ふじさん"]},{"surface":"負傷","readings":["ふしょう"]},{"surface":"婦人服","readings":["ふじんふく"]},{"surface":"双子","readings":["ふたご"]},{"surface":"再び","readings":["ふたたび"]},{"surface":"二日","readings":["ふつか"]},{"surface":"布団","readings":["ふとん"]},{"surface":"船便","readings":["ふなびん"]},{"surface":"不服","readings":["ふふく"]},{"surface":"部門長","readings":["ぶもんちょう"]},{"surface":"ブラインド","readings":["ぶらいんど"]},{"surface":"ブラシ","readings":["ぶらし"]},{"surface":"プラスチック","readings":["ぷらすちっく"]},{"surface":"プラットホーム","readings":["ぷらっとほーむ"]},{"surface":"プラン","readings":["ぷらん"]},{"surface":"プリン","readings":["ぷりん"]},{"surface":"プレゼント","readings":["ぷれぜんと"]},{"surface":"プログラム","readings":["ぷろぐらむ"]},{"surface":"プロジェクト","readings":["ぷろじぇくと"]},{"surface":"プロ","readings":["ぷろ"]},{"surface":"部屋","readings":["へや"]},{"surface":"塀","readings":["へい"]},{"surface":"平和","readings":["へいわ"]},{"surface":"閉会","readings":["へいかい"]},{"surface":"平均","readings":["へいきん"]},{"surface":"並行","readings":["へいこう"]},{"surface":"兵士","readings":["へいし"]},{"surface":"平成","readings":["へいせい"]},{"surface":"閉店","readings":["へいてん"]},{"surface":"平野","readings":["へいや"]},{"surface":"下手","readings":["へた"]},{"surface":"辺","readings":["へん"]},{"surface":"変","readings":["へん"]},{"surface":"変化","readings":["へんか"]},{"surface":"編集","readings":["へんしゅう"]},{"surface":"返事","readings":["へんじ"]},{"surface":"変態","readings":["へんたい"]},{"surface":"変動","readings":["へんどう"]},{"surface":"便利","readings":["べんり"]},{"surface":"弁当","readings":["べんとう"]},{"surface":"弁護士","readings":["べんごし"]},{"surface":"勉強","readings":["べんきょう"]},{"surface":"弁論","readings":["べんろん"]},{"surface":"ページ","readings":["ぺーじ"]},{"surface":"ペース","readings":["ぺーす"]},{"surface":"ペット","readings":["ぺっと"]},{"surface":"ペン","readings":["ぺん"]},{"surface":"ヘルメット","readings":["へるめっと"]},{"surface":"ヘリコプター","readings":["へりこぷたー"]},{"surface":"穂","readings":["ほ"]},{"surface":"保","readings":["ほ"]},{"surface":"保育","readings":["ほいく"]},{"surface":"法案","readings":["ほうあん"]},{"surface":"方位","readings":["ほうい"]},{"surface":"貿易","readings":["ぼうえき"]},{"surface":"方角","readings":["ほうがく"]},{"surface":"宝くじ","readings":["たからくじ"]},{"surface":"方言","readings":["ほうげん"]},{"surface":"方向","readings":["ほうこう"]},{"surface":"報告","readings":["ほうこく"]},{"surface":"放射","readings":["ほうしゃ"]},{"surface":"放出","readings":["ほうしゅつ"]},{"surface":"放送","readings":["ほうそう"]},{"surface":"法則","readings":["ほうそく"]},{"surface":"包丁","readings":["ほうちょう"]},{"surface":"方程式","readings":["ほうていしき"]},{"surface":"報道","readings":["ほうどう"]},{"surface":"方法","readings":["ほうほう"]},{"surface":"方面","readings":["ほうめん"]},{"surface":"法律","readings":["ほうりつ"]},{"surface":"ホール","readings":["ほーる"]},{"surface":"ホーム","readings":["ほーむ"]},{"surface":"保険","readings":["ほけん"]},{"surface":"矛","readings":["ほこ"]},{"surface":"星","readings":["ほし"]},{"surface":"保証","readings":["ほしょう"]},{"surface":"保存","readings":["ほぞん"]},{"surface":"程","readings":["ほど"]},{"surface":"歩道","readings":["ほどう"]},{"surface":"堀","readings":["ほり"]},{"surface":"本","readings":["ほん"]},{"surface":"本音","readings":["ほんね"]},{"surface":"本屋","readings":["ほんや"]},{"surface":"本当","readings":["ほんとう"]},{"surface":"本人","readings":["ほんにん"]},{"surface":"本部","readings":["ほんぶ"]},{"surface":"本物","readings":["ほんもの"]},{"surface":"翻訳","readings":["ほんやく"]},{"surface":"ボール","readings":["ぼーる"]},{"surface":"ボート","readings":["ぼーと"]},{"surface":"ボタン","readings":["ぼたん"]},{"surface":"ボトル","readings":["ぼとる"]},{"surface":"ボランティア","readings":["ぼらんてぃあ"]},{"surface":"ボーナス","readings":["ぼーなす"]},{"surface":"ポケット","readings":["ぽけっと"]},{"surface":"ポスト","readings":["ぽすと"]},{"surface":"ポスター","readings":["ぽすたー"]},{"surface":"ポイント","readings":["ぽいんと"]},{"surface":"ポーズ","readings":["ぽーず"]},{"surface":"牧場","readings":["ぼくじょう"]},{"surface":"募集","readings":["ぼしゅう"]},{"surface":"墓地","readings":["ぼち"]},{"surface":"牡丹","readings":["ぼたん"]},{"surface":"母音","readings":["ぼいん"]},{"surface":"簿記","readings":["ぼき"]},{"surface":"僕","readings":["ぼく"]},{"surface":"間","readings":["ま"]},{"surface":"真","readings":["ま"]},{"surface":"舞","readings":["まい"]},{"surface":"毎","readings":["まい"]},{"surface":"迷子","readings":["まいご"]},{"surface":"毎回","readings":["まいかい"]},{"surface":"枚数","readings":["まいすう"]},{"surface":"毎日","readings":["まいにち"]},{"surface":"毎年","readings":["まいとし"]},{"surface":"毎晩","readings":["まいばん"]},{"surface":"前","readings":["まえ"]},{"surface":"前売り","readings":["まえうり"]},{"surface":"曲が","readings":["まが"]},{"surface":"枕","readings":["まくら"]},{"surface":"負け","readings":["まけ"]},{"surface":"孫","readings":["まご"]},{"surface":"真面目","readings":["まじめ"]},{"surface":"街","readings":["まち"]},{"surface":"待ち","readings":["まち"]},{"surface":"松","readings":["まつ"]},{"surface":"祭り","readings":["まつり"]},{"surface":"窓","readings":["まど"]},{"surface":"真実","readings":["しんじつ"]},{"surface":"真中","readings":["まんなか"]},{"surface":"真似","readings":["まね"]},{"surface":"守り","readings":["まもり"]},{"surface":"丸","readings":["まる"]},{"surface":"円い","readings":["まるい"]},{"surface":"周り","readings":["まわり"]},{"surface":"万年筆","readings":["まんねんひつ"]},{"surface":"満員","readings":["まんいん"]},{"surface":"漫画","readings":["まんが"]},{"surface":"満足","readings":["まんぞく"]},{"surface":"満点","readings":["まんてん"]},{"surface":"マンション","readings":["まんしょん"]},{"surface":"マーク","readings":["まーく"]},{"surface":"マイク","readings":["まいく"]},{"surface":"マウス","readings":["まうす"]},{"surface":"マカロニ","readings":["まかろに"]},{"surface":"マスク","readings":["ますく"]},{"surface":"マスコミ","readings":["ますこみ"]},{"surface":"マッサージ","readings":["まっさーじ"]},{"surface":"マット","readings":["まっと"]},{"surface":"ママ","readings":["まま"]},{"surface":"マラソン","readings":["まらそん"]},{"surface":"マニュアル","readings":["まにゅある"]},{"surface":"身","readings":["み"]},{"surface":"未","readings":["み"]},{"surface":"見送り","readings":["みおくり"]},{"surface":"磨き","readings":["みがき"]},{"surface":"味方","readings":["みかた"]},{"surface":"右側","readings":["みぎがわ"]},{"surface":"右","readings":["みぎ"]},{"surface":"未婚","readings":["みこん"]},{"surface":"岬","readings":["みさき"]},{"surface":"店","readings":["みせ"]},{"surface":"味噌","readings":["みそ"]},{"surface":"見出し","readings":["みだし"]},{"surface":"道","readings":["みち"]},{"surface":"三日","readings":["みっか"]},{"surface":"密","readings":["みつ"]},{"surface":"緑","readings":["みどり"]},{"surface":"皆","readings":["みな"]},{"surface":"南側","readings":["みなみがわ"]},{"surface":"身なり","readings":["みなり"]},{"surface":"峰","readings":["みね"]},{"surface":"見本","readings":["みほん"]},{"surface":"身分","readings":["みぶん"]},{"surface":"未満","readings":["みまん"]},{"surface":"耳","readings":["みみ"]},{"surface":"都心","readings":["としん"]},{"surface":"名字","readings":["みょうじ"]},{"surface":"未来","readings":["みらい"]},{"surface":"魅力","readings":["みりょく"]},{"surface":"民間","readings":["みんかん"]},{"surface":"民主","readings":["みんしゅ"]},{"surface":"民族","readings":["みんぞく"]},{"surface":"みんな","readings":["みんな"]},{"surface":"ミルク","readings":["みるく"]},{"surface":"ミラー","readings":["みらー"]},{"surface":"ミュージック","readings":["みゅーじっく"]},{"surface":"メニュー","readings":["めにゅー"]},{"surface":"目","readings":["め"]},{"surface":"芽","readings":["め"]},{"surface":"姪","readings":["めい"]},{"surface":"明細","readings":["めいさい"]},{"surface":"名刺","readings":["めいし"]},{"surface":"名所","readings":["めいしょ"]},{"surface":"名人","readings":["めいじん"]},{"surface":"明治","readings":["めいじ"]},{"surface":"名称","readings":["めいしょう"]},{"surface":"迷信","readings":["めいしん"]},{"surface":"鳴動","readings":["めいどう"]},{"surface":"名簿","readings":["めいぼ"]},{"surface":"命令","readings":["めいれい"]},{"surface":"迷路","readings":["めいろ"]},{"surface":"眼鏡","readings":["めがね"]},{"surface":"恵み","readings":["めぐみ"]},{"surface":"目指し","readings":["めざし"]},{"surface":"目覚まし","readings":["めざまし"]},{"surface":"飯","readings":["めし"]},{"surface":"珍しい","readings":["めずらしい"]},{"surface":"メダル","readings":["めだる"]},{"surface":"滅多","readings":["めった"]},{"surface":"目的","readings":["もくてき"]},{"surface":"目玉","readings":["めだま"]},{"surface":"メトロ","readings":["めとろ"]},{"surface":"メモ","readings":["めも"]},{"surface":"目安","readings":["めやす"]},{"surface":"綿","readings":["めん","わた"]},{"surface":"免許","readings":["めんきょ"]},{"surface":"面子","readings":["めんつ"]},{"surface":"面倒","readings":["めんどう"]},{"surface":"面積","readings":["めんせき"]},{"surface":"メール","readings":["めーる"]},{"surface":"メーカー","readings":["めーかー"]},{"surface":"メイン","readings":["めいん"]},{"surface":"メガホン","readings":["めがほん"]},{"surface":"メッセージ","readings":["めっせーじ"]},{"surface":"メディア","readings":["めでぃあ"]},{"surface":"メリット","readings":["めりっと"]},{"surface":"も","readings":["も"]},{"surface":"喪","readings":["も"]},{"surface":"盲","readings":["もう"]},{"surface":"儲け","readings":["もうけ"]},{"surface":"申し込み","readings":["もうしこみ"]},{"surface":"申込書","readings":["もうしこみしょ"]},{"surface":"毛布","readings":["もうふ"]},{"surface":"燃え","readings":["もえ"]},{"surface":"目標","readings":["もくひょう"]},{"surface":"木曜日","readings":["もくようび"]},{"surface":"模型","readings":["もけい"]},{"surface":"もしも","readings":["もしも"]},{"surface":"文字","readings":["もじ"]},{"surface":"持ち","readings":["もち"]},{"surface":"持ち主","readings":["もちぬし"]},{"surface":"餅","readings":["もち"]},{"surface":"最も","readings":["もっとも"]},{"surface":"基","readings":["もと"]},{"surface":"元","readings":["もと"]},{"surface":"戻し","readings":["もどし"]},{"surface":"物","readings":["もの"]},{"surface":"者","readings":["もの"]},{"surface":"物語","readings":["ものがたり"]},{"surface":"物事","readings":["ものごと"]},{"surface":"模様","readings":["もよう"]},{"surface":"貰い","readings":["もらい"]},{"surface":"森","readings":["もり"]},{"surface":"漏れ","readings":["もれ"]},{"surface":"門","readings":["もん"]},{"surface":"問題","readings":["もんだい"]},{"surface":"文句","readings":["もんく"]},{"surface":"モンキー","readings":["もんきー"]},{"surface":"モニター","readings":["もにたー"]},{"surface":"モード","readings":["もーど"]},{"surface":"モーニング","readings":["もーにんぐ"]},{"surface":"モーター","readings":["もーたー"]},{"surface":"モデル","readings":["もでる"]},{"surface":"モバイル","readings":["もばいる"]},{"surface":"モラル","readings":["もらる"]},{"surface":"矢","readings":["や"]},{"surface":"屋","readings":["や"]},{"surface":"夜","readings":["よる","よ"]},{"surface":"八百屋","readings":["やおや"]},{"surface":"役割","readings":["やくわり"]},{"surface":"約束","readings":["やくそく"]},{"surface":"役所","readings":["やくしょ"]},{"surface":"役人","readings":["やくにん"]},{"surface":"薬品","readings":["やくひん"]},{"surface":"約","readings":["やく"]},{"surface":"火傷","readings":["やけど"]},{"surface":"野菜","readings":["やさい"]},{"surface":"優しさ","readings":["やさしさ"]},{"surface":"安物","readings":["やすもの"]},{"surface":"休み","readings":["やすみ"]},{"surface":"家賃","readings":["やちん"]},{"surface":"八つ","readings":["やっつ"]},{"surface":"奴","readings":["やつ"]},{"surface":"屋根","readings":["やね"]},{"surface":"山","readings":["やま"]},{"surface":"山登り","readings":["やまのぼり"]},{"surface":"辞め","readings":["やめ"]},{"surface":"やり直し","readings":["やりなおし"]},{"surface":"やり方","readings":["やりかた"]},{"surface":"槍","readings":["やり"]},{"surface":"ヤンキー","readings":["やんきー"]},{"surface":"ヤード","readings":["やーど"]},{"surface":"ユーザー","readings":["ゆーざー"]},{"surface":"湯","readings":["ゆ"]},{"surface":"優位","readings":["ゆうい"]},{"surface":"友人","readings":["ゆうじん"]},{"surface":"有効","readings":["ゆうこう"]},{"surface":"夕刊","readings":["ゆうかん"]},{"surface":"勇気","readings":["ゆうき"]},{"surface":"夕暮れ","readings":["ゆうぐれ"]},{"surface":"有罪","readings":["ゆうざい"]},{"surface":"融資","readings":["ゆうし"]},{"surface":"優勝","readings":["ゆうしょう"]},{"surface":"優先","readings":["ゆうせん"]},{"surface":"郵送","readings":["ゆうそう"]},{"surface":"有能","readings":["ゆうのう"]},{"surface":"夕日","readings":["ゆうひ"]},{"surface":"郵便","readings":["ゆうびん"]},{"surface":"有名","readings":["ゆうめい"]},{"surface":"夕焼け","readings":["ゆうやけ"]},{"surface":"夕立","readings":["ゆうだち"]},{"surface":"幽霊","readings":["ゆうれい"]},{"surface":"余裕","readings":["よゆう"]},{"surface":"雪","readings":["ゆき"]},{"surface":"行方","readings":["ゆくえ"]},{"surface":"輸入","readings":["ゆにゅう"]},{"surface":"ユニフォーム","readings":["ゆにふぉーむ"]},{"surface":"夢","readings":["ゆめ"]},{"surface":"由来","readings":["ゆらい"]},{"surface":"緩み","readings":["ゆるみ"]},{"surface":"ユートピア","readings":["ゆーとぴあ"]},{"surface":"ヨーロッパ","readings":["よーろっぱ"]},{"surface":"ヨーグルト","readings":["よーぐると"]},{"surface":"世","readings":["よ"]},{"surface":"用意","readings":["ようい"]},{"surface":"要求","readings":["ようきゅう"]},{"surface":"用語","readings":["ようご"]},{"surface":"様子","readings":["ようす"]},{"surface":"幼児","readings":["ようじ"]},{"surface":"用心","readings":["ようじん"]},{"surface":"容姿","readings":["ようし"]},{"surface":"洋食","readings":["ようしょく"]},{"surface":"養成","readings":["ようせい"]},{"surface":"要素","readings":["ようそ"]},{"surface":"洋服","readings":["ようふく"]},{"surface":"用法","readings":["ようほう"]},{"surface":"羊毛","readings":["ようもう"]},{"surface":"要約","readings":["ようやく"]},{"surface":"曜日","readings":["ようび"]},{"surface":"余暇","readings":["よか"]},{"surface":"翌朝","readings":["よくあさ"]},{"surface":"浴槽","readings":["よくそう"]},{"surface":"翌日","readings":["よくじつ"]},{"surface":"横","readings":["よこ"]},{"surface":"横顔","readings":["よこがお"]},{"surface":"予算","readings":["よさん"]},{"surface":"寄せ","readings":["よせ"]},{"surface":"予測","readings":["よそく"]},{"surface":"余地","readings":["よち"]},{"surface":"四つ","readings":["よっつ"]},{"surface":"予定","readings":["よてい"]},{"surface":"夜中","readings":["よなか"]},{"surface":"世の中","readings":["よのなか"]},{"surface":"予備","readings":["よび"]},{"surface":"呼び","readings":["よび"]},{"surface":"余分","readings":["よぶん"]},{"surface":"読み","readings":["よみ"]},{"surface":"嫁","readings":["よめ"]},{"surface":"より","readings":["より"]},{"surface":"喜び","readings":["よろこび"]},{"surface":"弱い","readings":["よわい"]},{"surface":"弱さ","readings":["よわさ"]},{"surface":"四日","readings":["よっか"]},{"surface":"世論","readings":["よろん"]},{"surface":"ヨガ","readings":["よが"]},{"surface":"ヨット","readings":["よっと"]},{"surface":"楽","readings":["らく"]},{"surface":"落書き","readings":["らくがき"]},{"surface":"楽園","readings":["らくえん"]},{"surface":"落選","readings":["らくせん"]},{"surface":"落花生","readings":["らっかせい"]},{"surface":"欄","readings":["らん"]},{"surface":"乱暴","readings":["らんぼう"]},{"surface":"乱","readings":["らん"]},{"surface":"ランプ","readings":["らんぷ"]},{"surface":"ランチ","readings":["らんち"]},{"surface":"ランドリー","readings":["らんどりー"]},{"surface":"ライバル","readings":["らいばる"]},{"surface":"ライオン","readings":["らいおん"]},{"surface":"ライト","readings":["らいと"]},{"surface":"ライフ","readings":["らいふ"]},{"surface":"ライン","readings":["らいん"]},{"surface":"ラジオ","readings":["らじお"]},{"surface":"ラッシュ","readings":["らっしゅ"]},{"surface":"ラーメン","readings":["らーめん"]},{"surface":"ランニング","readings":["らんにんぐ"]},{"surface":"利","readings":["り"]},{"surface":"理","readings":["り"]},{"surface":"利益","readings":["りえき"]},{"surface":"理解","readings":["りかい"]},{"surface":"陸地","readings":["りくち"]},{"surface":"利口","readings":["りこう"]},{"surface":"離婚","readings":["りこん"]},{"surface":"理屈","readings":["りくつ"]},{"surface":"利子","readings":["りし"]},{"surface":"理事","readings":["りじ"]},{"surface":"リズム","readings":["りずむ"]},{"surface":"理性","readings":["りせい"]},{"surface":"理想","readings":["りそう"]},{"surface":"立体","readings":["りったい"]},{"surface":"利点","readings":["りてん"]},{"surface":"リボン","readings":["りぼん"]},{"surface":"略","readings":["りゃく"]},{"surface":"流域","readings":["りゅういき"]},{"surface":"留学","readings":["りゅうがく"]},{"surface":"流速","readings":["りゅうそく"]},{"surface":"量","readings":["りょう"]},{"surface":"寮","readings":["りょう"]},{"surface":"料金","readings":["りょうきん"]},{"surface":"漁師","readings":["りょうし"]},{"surface":"良心","readings":["りょうしん"]},{"surface":"両手","readings":["りょうて"]},{"surface":"領土","readings":["りょうど"]},{"surface":"両方","readings":["りょうほう"]},{"surface":"料理","readings":["りょうり"]},{"surface":"旅券","readings":["りょけん"]},{"surface":"旅行","readings":["りょこう"]},{"surface":"旅館","readings":["りょかん"]},{"surface":"履歴","readings":["りれき"]},{"surface":"理論","readings":["りろん"]},{"surface":"林業","readings":["りんぎょう"]},{"surface":"臨時","readings":["りんじ"]},{"surface":"リンゴ","readings":["りんご"]},{"surface":"リンク","readings":["りんく"]},{"surface":"リーダー","readings":["りーだー"]},{"surface":"リサイクル","readings":["りさいくる"]},{"surface":"リスト","readings":["りすと"]},{"surface":"リットル","readings":["りっとる"]},{"surface":"リビング","readings":["りびんぐ"]},{"surface":"リモコン","readings":["りもこん"]},{"surface":"ルール","readings":["るーる"]},{"surface":"ルーム","readings":["るーむ"]},{"surface":"ルート","readings":["るーと"]},{"surface":"類","readings":["るい"]},{"surface":"累計","readings":["るいけい"]},{"surface":"類似","readings":["るいじ"]},{"surface":"類型","readings":["るいけい"]},{"surface":"礼","readings":["れい"]},{"surface":"零","readings":["れい"]},{"surface":"例","readings":["れい"]},{"surface":"冷","readings":["れい"]},{"surface":"例外","readings":["れいがい"]},{"surface":"礼儀","readings":["れいぎ"]},{"surface":"冷酷","readings":["れいこく"]},{"surface":"冷静","readings":["れいせい"]},{"surface":"冷蔵","readings":["れいぞう"]},{"surface":"冷蔵庫","readings":["れいぞうこ"]},{"surface":"零度","readings":["れいど"]},{"surface":"例年","readings":["れいねん"]},{"surface":"列車","readings":["れっしゃ"]},{"surface":"歴史","readings":["れきし"]},{"surface":"列","readings":["れつ"]},{"surface":"連休","readings":["れんきゅう"]},{"surface":"連合","readings":["れんごう"]},{"surface":"練習","readings":["れんしゅう"]},{"surface":"連想","readings":["れんそう"]},{"surface":"連続","readings":["れんぞく"]},{"surface":"連帯","readings":["れんたい"]},{"surface":"連絡","readings":["れんらく"]},{"surface":"恋愛","readings":["れんあい"]},{"surface":"レース","readings":["れーす"]},{"surface":"レインコート","readings":["れいんこーと"]},{"surface":"レシート","readings":["れしーと"]},{"surface":"レストラン","readings":["れすとらん"]},{"surface":"レベル","readings":["れべる"]},{"surface":"レモン","readings":["れもん"]},{"surface":"レンズ","readings":["れんず"]},{"surface":"路","readings":["ろ"]},{"surface":"炉","readings":["ろ"]},{"surface":"労","readings":["ろう"]},{"surface":"狼","readings":["おおかみ"]},{"surface":"老化","readings":["ろうか"]},{"surface":"労働","readings":["ろうどう"]},{"surface":"老後","readings":["ろうご"]},{"surface":"老人","readings":["ろうじん"]},{"surface":"朗読","readings":["ろうどく"]},{"surface":"廊下","readings":["ろうか"]},{"surface":"録音","readings":["ろくおん"]},{"surface":"六","readings":["ろく"]},{"surface":"路線","readings":["ろせん"]},{"surface":"路地","readings":["ろじ"]},{"surface":"論","readings":["ろん"]},{"surface":"論拠","readings":["ろんきょ"]},{"surface":"論証","readings":["ろんしょう"]},{"surface":"論争","readings":["ろんそう"]},{"surface":"論文","readings":["ろんぶん"]},{"surface":"論理","readings":["ろんり"]},{"surface":"ローマ","readings":["ろーま"]},{"surface":"ロープ","readings":["ろーぷ"]},{"surface":"ロボット","readings":["ろぼっと"]},{"surface":"ロック","readings":["ろっく"]},{"surface":"ロケット","readings":["ろけっと"]},{"surface":"ロビー","readings":["ろびー"]},{"surface":"ロング","readings":["ろんぐ"]},{"surface":"輪","readings":["わ"]},{"surface":"和","readings":["わ"]},{"surface":"羽","readings":["わ"]},{"surface":"和英","readings":["わえい"]},{"surface":"和歌","readings":["わか"]},{"surface":"若い","readings":["わかい"]},{"surface":"若手","readings":["わかて"]},{"surface":"若者","readings":["わかもの"]},{"surface":"分から","readings":["わから"]},{"surface":"分け","readings":["わけ"]},{"surface":"技","readings":["わざ"]},{"surface":"わざと","readings":["わざと"]},{"surface":"災い","readings":["わざわい"]},{"surface":"鷲","readings":["わし"]},{"surface":"和式","readings":["わしき"]},{"surface":"和食","readings":["わしょく"]},{"surface":"忘れ物","readings":["わすれもの"]},{"surface":"話題","readings":["わだい"]},{"surface":"私","readings":["わたし"]},{"surface":"渡り","readings":["わたり"]},{"surface":"湾","readings":["わん"]},{"surface":"ワンピース","readings":["わんぴーす"]},{"surface":"ワイン","readings":["わいん"]},{"surface":"ワイシャツ","readings":["わいしゃつ"]},{"surface":"ワクチン","readings":["わくちん"]},{"surface":"ワット","readings":["わっと"]},{"surface":"笑い","readings":["わらい"]},{"surface":"悪口","readings":["わるぐち"]},{"surface":"悪者","readings":["わるもの"]},{"surface":"割合","readings":["わりあい"]},{"surface":"割引","readings":["わりびき"]},{"surface":"割れ","readings":["われ"]},{"surface":"我々","readings":["われわれ"]},{"surface":"虫","readings":["むし"]},{"surface":"無理","readings":["むり"]},{"surface":"昔","readings":["むかし"]},{"surface":"向こう","readings":["むこう"]},{"surface":"胸","readings":["むね"]},{"surface":"無線","readings":["むせん"]},{"surface":"無料","readings":["むりょう"]},{"surface":"無数","readings":["むすう"]},{"surface":"息子","readings":["むすこ"]},{"surface":"娘","readings":["むすめ"]},{"surface":"矛盾","readings":["むじゅん"]},{"surface":"無駄","readings":["むだ"]},{"surface":"無敵","readings":["むてき"]},{"surface":"無人","readings":["むじん"]},{"surface":"無言","readings":["むごん"]},{"surface":"ムード","readings":["むーど"]},{"surface":"ムチ","readings":["むち"]},{"surface":"村","readings":["むら"]},{"surface":"群れ","readings":["むれ"]},{"surface":"麦","readings":["むぎ"]},{"surface":"結び","readings":["むすび"]},{"surface":"紫","readings":["むらさき"]},{"surface":"無名","readings":["むめい"]},{"surface":"無職","readings":["むしょく"]},{"surface":"無休","readings":["むきゅう"]},{"surface":"無力","readings":["むりょく"]},{"surface":"無地","readings":["むじ"]},{"surface":"無限","readings":["むげん"]},{"surface":"無関心","readings":["むかんしん"]},{"surface":"無茶","readings":["むちゃ"]},{"surface":"むすび目","readings":["むすびめ"]},{"surface":"無音","readings":["むおん"]},{"surface":"無農薬","readings":["むのうやく"]},{"surface":"無理矢理","readings":["むりやり"]},{"surface":"外側","readings":["そとがわ"]},{"surface":"外","readings":["そと"]},{"surface":"袖","readings":["そで"]},{"surface":"育ち","readings":["そだち"]},{"surface":"祖父","readings":["そふ"]},{"surface":"祖母","readings":["そぼ"]},{"surface":"素材","readings":["そざい"]},{"surface":"相談","readings":["そうだん"]},{"surface":"装置","readings":["そうち"]},{"surface":"想像","readings":["そうぞう"]},{"surface":"倉庫","readings":["そうこ"]},{"surface":"掃除","readings":["そうじ"]},{"surface":"騒音","readings":["そうおん"]},{"surface":"送金","readings":["そうきん"]},{"surface":"葬式","readings":["そうしき"]},{"surface":"草原","readings":["そうげん"]},{"surface":"組織","readings":["そしき"]},{"surface":"速度","readings":["そくど"]},{"surface":"側面","readings":["そくめん"]},{"surface":"底","readings":["そこ"]},{"surface":"その後","readings":["そのご"]},{"surface":"損害","readings":["そんがい"]},{"surface":"存在","readings":["そんざい"]},{"surface":"尊敬","readings":["そんけい"]},{"surface":"ソフト","readings":["そふと"]},{"surface":"ソファ","readings":["そふぁ"]},{"surface":"ソース","readings":["そーす"]},{"surface":"ソーセージ","readings":["そーせーじ"]},{"surface":"空豆","readings":["そらまめ"]},{"surface":"措置","readings":["そち"]},{"surface":"卒業式","readings":["そつぎょうしき"]},{"surface":"卒業","readings":["そつぎょう"]},{"surface":"備え","readings":["そなえ"]},{"surface":"染め物","readings":["そめもの"]},{"surface":"空耳","readings":["そらみみ"]},{"surface":"促進","readings":["そくしん"]},{"surface":"測定","readings":["そくてい"]},{"surface":"速達","readings":["そくたつ"]},{"surface":"祖先","readings":["そせん"]},{"surface":"相場","readings":["そうば"]},{"surface":"相続","readings":["そうぞく"]},{"surface":"相対","readings":["そうたい"]},{"surface":"早朝","readings":["そうちょう"]},{"surface":"双方","readings":["そうほう"]},{"surface":"送別","readings":["そうべつ"]},{"surface":"総理","readings":["そうり"]},{"surface":"総数","readings":["そうすう"]},{"surface":"総合","readings":["そうごう"]},{"surface":"装備","readings":["そうび"]},{"surface":"素描","readings":["そびょう"]},{"surface":"疎外","readings":["そがい"]},{"surface":"素質","readings":["そしつ"]},{"surface":"素朴","readings":["そぼく"]},{"surface":"空模様","readings":["そらもよう"]},{"surface":"育ち盛り","readings":["そだちざかり"]},{"surface":"即答","readings":["そくとう"]},{"surface":"測定器","readings":["そくていき"]},{"surface":"即興","readings":["そっきょう"]},{"surface":"率直","readings":["そっちょく"]},{"surface":"増加","readings":["ぞうか"]},{"surface":"増減","readings":["ぞうげん"]},{"surface":"象","readings":["ぞう"]},{"surface":"臓器","readings":["ぞうき"]},{"surface":"造語","readings":["ぞうご"]},{"surface":"ぞうさん","readings":["ぞうさん"]},{"surface":"属性","readings":["ぞくせい"]},{"surface":"続編","readings":["ぞくへん"]},{"surface":"続報","readings":["ぞくほう"]},{"surface":"俗語","readings":["ぞくご"]},{"surface":"族","readings":["ぞく"]},{"surface":"増税","readings":["ぞうぜい"]},{"surface":"憎悪","readings":["ぞうお"]},{"surface":"造形","readings":["ぞうけい"]},{"surface":"造船","readings":["ぞうせん"]},{"surface":"増員","readings":["ぞういん"]},{"surface":"芸","readings":["げい"]},{"surface":"芸術","readings":["げいじゅつ"]},{"surface":"芸人","readings":["げいにん"]},{"surface":"下旬","readings":["げじゅん"]},{"surface":"下校","readings":["げこう"]},{"surface":"下車","readings":["げしゃ"]},{"surface":"下宿","readings":["げしゅく"]},{"surface":"下期","readings":["げき"]},{"surface":"下駄","readings":["げた"]},{"surface":"下痢","readings":["げり"]},{"surface":"原料","readings":["げんりょう"]},{"surface":"減点","readings":["げんてん"]},{"surface":"限界","readings":["げんかい"]},{"surface":"現金","readings":["げんきん"]},{"surface":"原稿","readings":["げんこう"]},{"surface":"言語","readings":["げんご"]},{"surface":"現状","readings":["げんじょう"]},{"surface":"原則","readings":["げんそく"]},{"surface":"現代","readings":["げんだい"]},{"surface":"原爆","readings":["げんばく"]},{"surface":"現場","readings":["げんば"]},{"surface":"原理","readings":["げんり"]},{"surface":"ゲーム","readings":["げーむ"]},{"surface":"ゲート","readings":["げーと"]},{"surface":"ゲスト","readings":["げすと"]},{"surface":"外科","readings":["げか"]},{"surface":"毛","readings":["け"]},{"surface":"刑","readings":["けい"]},{"surface":"計","readings":["けい"]},{"surface":"敬","readings":["けい"]},{"surface":"景","readings":["けい"]},{"surface":"経過","readings":["けいか"]},{"surface":"計画","readings":["けいかく"]},{"surface":"景気","readings":["けいき"]},{"surface":"経験","readings":["けいけん"]},{"surface":"傾向","readings":["けいこう"]},{"surface":"警告","readings":["けいこく"]},{"surface":"掲載","readings":["けいさい"]},{"surface":"計算","readings":["けいさん"]},{"surface":"形式","readings":["けいしき"]},{"surface":"携帯","readings":["けいたい"]},{"surface":"経度","readings":["けいど"]},{"surface":"競馬","readings":["けいば"]},{"surface":"警部","readings":["けいぶ"]},{"surface":"契約","readings":["けいやく"]},{"surface":"経路","readings":["けいろ"]},{"surface":"怪我","readings":["けが"]},{"surface":"毛皮","readings":["けがわ"]},{"surface":"劇","readings":["げき"]},{"surface":"劇場","readings":["げきじょう"]},{"surface":"激戦","readings":["げきせん"]},{"surface":"傑作","readings":["けっさく"]},{"surface":"結果","readings":["けっか"]},{"surface":"結構","readings":["けっこう"]},{"surface":"決心","readings":["けっしん"]},{"surface":"欠席","readings":["けっせき"]},{"surface":"決定","readings":["けってい"]},{"surface":"欠点","readings":["けってん"]},{"surface":"結論","readings":["けつろん"]},{"surface":"血圧","readings":["けつあつ"]},{"surface":"血液","readings":["けつえき"]},{"surface":"血統","readings":["けっとう"]},{"surface":"券","readings":["けん"]},{"surface":"県","readings":["けん"]},{"surface":"権","readings":["けん"]},{"surface":"剣","readings":["けん"]},{"surface":"喧嘩","readings":["けんか"]},{"surface":"見解","readings":["けんかい"]},{"surface":"研究","readings":["けんきゅう"]},{"surface":"権限","readings":["けんげん"]},{"surface":"健康診断","readings":["けんこうしんだん"]},{"surface":"健康","readings":["けんこう"]},{"surface":"検査","readings":["けんさ"]},{"surface":"建設","readings":["けんせつ"]},{"surface":"検索","readings":["けんさく"]},{"surface":"見当","readings":["けんとう"]},{"surface":"権利","readings":["けんり"]},{"surface":"県立","readings":["けんりつ"]},{"surface":"ケーキ","readings":["けーき"]},{"surface":"ケース","readings":["けーす"]},{"surface":"ケーブル","readings":["けーぶる"]},{"surface":"ケンタッキー","readings":["けんたっきー"]},{"surface":"消しゴム","readings":["けしごむ"]},{"surface":"毛糸","readings":["けいと"]},{"surface":"景色","readings":["けしき"]},{"surface":"化粧","readings":["けしょう"]},{"surface":"今朝","readings":["けさ"]},{"surface":"桁","readings":["けた"]},{"surface":"決断","readings":["けつだん"]},{"surface":"結束","readings":["けっそく"]},{"surface":"月曜日","readings":["げつようび"]},{"surface":"月末","readings":["げつまつ"]},{"surface":"月謝","readings":["げっしゃ"]},{"surface":"下品","readings":["げひん"]},{"surface":"ゲリラ","readings":["げりら"]},{"surface":"限界点","readings":["げんかいてん"]},{"surface":"原始","readings":["げんし"]},{"surface":"幻想","readings":["げんそう"]},{"surface":"原作","readings":["げんさく"]},{"surface":"減速","readings":["げんそく"]},{"surface":"減少","readings":["げんしょう"]},{"surface":"獣","readings":["けもの"]},{"surface":"懸念","readings":["けねん"]},{"surface":"家事","readings":["かじ"]},{"surface":"そば","readings":["そば"]},{"surface":"そちら","readings":["そちら"]},{"surface":"そちら様","readings":["そちらさま"]},{"surface":"そん","readings":["そん"]},{"surface":"それでは","readings":["それでは"]},{"surface":"それ自身","readings":["それじしん"]},{"surface":"ぞろ目","readings":["ぞろめ"]},{"surface":"ぞっと","readings":["ぞっと"]},{"surface":"ゾンビ","readings":["ぞんび"]},{"surface":"むかつき","readings":["むかつき"]},{"surface":"むくみ","readings":["むくみ"]},{"surface":"むき出し","readings":["むきだし"]},{"surface":"けものみち","readings":["けものみち"]},{"surface":"けが人","readings":["けがにん"]},{"surface":"けいおん","readings":["けいおん"]}];
+
+/* ========== Kana utilities ========== */
+const KATA_TO_HIRA = (() => {
+  const map = {};
+  // Map ァ-ン (and ヴ) only — do NOT map ー (U+30FC) or punctuation
+  for (let code = 0x30A1; code <= 0x30F6; code++) {
+    map[String.fromCharCode(code)] = String.fromCharCode(code - 0x60);
+  }
+  return map;
+})();
+
+const SMALL_TO_LARGE = {
+  'ゃ':'や','ゅ':'ゆ','ょ':'よ',
+  'ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お',
+  'っ':'つ','ゎ':'わ'
+};
+
+function toHiragana(str) {
+  let out = '';
+  for (const ch of str) {
+    if (KATA_TO_HIRA[ch]) out += KATA_TO_HIRA[ch];
+    else out += ch;
+  }
+  return out;
+}
+
+function normalizeFW(str) {
+  return str.replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+            .replace(/\u3000/g, ' ');
+}
+
+function normalizeReading(raw) {
+  let s = normalizeFW(String(raw).trim());
+  s = toHiragana(s);
+  s = s.replace(/[\s\u3000]/g, '');
+  return s;
+}
+
+/** Get the chain-end sound from a hiragana reading (rules 6,7) */
+function getEndSound(reading) {
+  if (!reading || reading.length === 0) return null;
+  let s = reading;
+  // Strip trailing ー: chain from char immediately before ー
+  while (s.length > 0 && s[s.length - 1] === 'ー') {
+    s = s.slice(0, -1);
+  }
+  if (s.length === 0) return null;
+  let last = s[s.length - 1];
+  // Small kana → large
+  if (SMALL_TO_LARGE[last]) last = SMALL_TO_LARGE[last];
+  return last;
+}
+
+/** Get the chain-start sound from a hiragana reading */
+function getStartSound(reading) {
+  if (!reading || reading.length === 0) return null;
+  let first = reading[0];
+  if (SMALL_TO_LARGE[first]) first = SMALL_TO_LARGE[first];
+  return first;
+}
+
+function endsWithN(reading) {
+  const end = getEndSound(reading);
+  return end === 'ん';
+}
+
+/* ========== Dictionary index ========== */
+const bySurface = new Map(); // surface -> entry
+const byReading = new Map(); // reading -> [entries]
+const allEntries = [];
+
+for (const entry of DICTIONARY) {
+  const readings = entry.readings.map(normalizeReading).filter(Boolean);
+  if (readings.length === 0) continue;
+  const e = { surface: entry.surface, readings };
+  allEntries.push(e);
+  if (!bySurface.has(e.surface)) bySurface.set(e.surface, e);
+  else {
+    // merge readings
+    const existing = bySurface.get(e.surface);
+    for (const r of readings) {
+      if (!existing.readings.includes(r)) existing.readings.push(r);
+    }
+  }
+  for (const r of readings) {
+    if (!byReading.has(r)) byReading.set(r, []);
+    byReading.get(r).push(e);
+  }
+}
+
+/** Count how many unused dictionary words start with a given sound */
+function countContinuations(startSound, usedSet) {
+  let n = 0;
+  for (const e of allEntries) {
+    for (const r of e.readings) {
+      if (usedSet.has(r)) continue;
+      if (endsWithN(r)) continue; // ん-ending are dead ends, still count as continuations? Yes for pressure
+      if (getStartSound(r) === startSound) { n++; break; }
+    }
+  }
+  return n;
+}
+
+function countAllContinuations(startSound, usedSet) {
+  let n = 0;
+  for (const e of allEntries) {
+    for (const r of e.readings) {
+      if (usedSet.has(r)) continue;
+      if (getStartSound(r) === startSound) { n++; break; }
+    }
+  }
+  return n;
+}
+
+/* ========== Game state ========== */
+const state = {
+  running: false,
+  turn: 'player', // 'player' | 'cpu'
+  required: null, // required start sound or null for first move
+  used: new Set(), // normalized readings used
+  history: [], // {who, surface, reading}
+  difficulty: 'medium',
+  cpuThinking: false
+};
+
+const $ = id => document.getElementById(id);
+const el = {
+  difficulty: $('difficulty'),
+  btnNew: $('btnNew'),
+  turnBadge: $('turnBadge'),
+  soundBadge: $('soundBadge'),
+  nextSound: $('nextSound'),
+  nextHint: $('nextHint'),
+  message: $('message'),
+  history: $('history'),
+  emptyState: $('emptyState'),
+  wordInput: $('wordInput'),
+  btnSubmit: $('btnSubmit'),
+  btnSurrender: $('btnSurrender'),
+  dictCount: $('dictCount')
+};
+
+el.dictCount.textContent = `辞書: ${allEntries.length} 語`;
+
+function showMessage(text, type) {
+  el.message.textContent = text;
+  el.message.className = 'message show ' + type;
+}
+
+function hideMessage() {
+  el.message.className = 'message';
+  el.message.textContent = '';
+}
+
+function updateUI() {
+  if (!state.running) {
+    el.turnBadge.textContent = '終了';
+    el.turnBadge.className = 'badge';
+    el.wordInput.disabled = true;
+    el.btnSubmit.disabled = true;
+    el.btnSurrender.disabled = true;
+    return;
+  }
+  if (state.turn === 'player' && !state.cpuThinking) {
+    el.turnBadge.textContent = 'あなたの番';
+    el.turnBadge.className = 'badge turn-player';
+    el.wordInput.disabled = false;
+    el.btnSubmit.disabled = false;
+    el.btnSurrender.disabled = false;
+  } else {
+    el.turnBadge.textContent = 'コンピューターの番';
+    el.turnBadge.className = 'badge turn-cpu';
+    el.wordInput.disabled = true;
+    el.btnSubmit.disabled = true;
+    el.btnSurrender.disabled = true;
+  }
+  if (state.required) {
+    el.soundBadge.style.display = '';
+    el.nextSound.textContent = state.required;
+    el.nextHint.innerHTML = `次は <strong>${state.required}</strong> で始まる言葉`;
+  } else {
+    el.soundBadge.style.display = 'none';
+    el.nextHint.textContent = '好きな言葉でスタートできます';
+  }
+}
+
+function renderHistory() {
+  el.history.innerHTML = '';
+  if (state.history.length === 0) {
+    el.history.innerHTML = '<div class="empty-state">まだ言葉がありません</div>';
+    return;
+  }
+  state.history.forEach((h, i) => {
+    const div = document.createElement('div');
+    div.className = 'history-item ' + h.who;
+    div.innerHTML = `
+      <div class="who">${h.who === 'player' ? 'あなた' : 'PC'}</div>
+      <div class="word">
+        <div class="surface">${escapeHtml(h.surface)}</div>
+        <div class="reading">（${escapeHtml(h.reading)}）</div>
+      </div>
+      <div class="num">#${i + 1}</div>`;
+    el.history.appendChild(div);
+  });
+  // scroll to bottom
+  const wrap = el.history.parentElement;
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ========== Lookup / validation ========== */
+function findEntryByInput(input) {
+  const raw = normalizeFW(input.trim());
+  if (!raw) return null;
+
+  // Try surface match (exact)
+  if (bySurface.has(raw)) return bySurface.get(raw);
+  // Try hiragana surface
+  const hira = normalizeReading(raw);
+  if (bySurface.has(hira)) return bySurface.get(hira);
+
+  // Try as reading (kana-only word)
+  if (byReading.has(hira)) {
+    // prefer entry whose surface equals the reading, else first
+    const list = byReading.get(hira);
+    const exact = list.find(e => e.surface === hira || normalizeReading(e.surface) === hira);
+    return exact || list[0];
+  }
+
+  // Also check if any entry has this surface in kana form of kanji... already covered
+  return null;
+}
+
+/**
+ * Pick a valid reading for the entry given previous required sound.
+ * Returns reading string or null if none valid.
+ */
+function pickValidReading(entry, required) {
+  const candidates = [];
+  for (const r of entry.readings) {
+    if (state.used.has(r)) continue;
+    if (required) {
+      if (getStartSound(r) !== required) continue;
+    }
+    candidates.push(r);
+  }
+  return candidates.length ? candidates : null;
+}
+
+function validatePlayerWord(input) {
+  const trimmed = input.trim();
+  if (!trimmed) return { ok: false, error: '言葉を入力してください。' };
+
+  const entry = findEntryByInput(trimmed);
+  if (!entry) return { ok: false, error: '辞書にない言葉です。別の言葉を試してください。' };
+
+  const readings = pickValidReading(entry, state.required);
+  if (!readings) {
+    // Check why
+    const allUsed = entry.readings.every(r => state.used.has(r));
+    if (allUsed) return { ok: false, error: 'その言葉（読み）はすでに使われています。' };
+    if (state.required) {
+      return { ok: false, error: `「${state.required}」で始まる読みが必要です。` };
+    }
+    return { ok: false, error: '使えません。' };
+  }
+
+  // Prefer reading that continues chain; if multiple, pick first (or one matching input if kana)
+  const inputHira = normalizeReading(trimmed);
+  let chosen = readings.find(r => r === inputHira) || readings[0];
+
+  if (endsWithN(chosen)) {
+    // Valid play but player loses
+    return { ok: true, entry, reading: chosen, loseByN: true };
+  }
+
+  return { ok: true, entry, reading: chosen, loseByN: false };
+}
+
+/* ========== Apply move ========== */
+function applyMove(who, surface, reading) {
+  state.used.add(reading);
+  state.history.push({ who, surface, reading });
+  state.required = getEndSound(reading);
+  renderHistory();
+  updateUI();
+}
+
+function endGame(winner, reason) {
+  state.running = false;
+  updateUI();
+  if (winner === 'player') {
+    showMessage('🎉 あなたの勝ち！ ' + reason, 'win');
+  } else {
+    showMessage('💻 コンピューターの勝ち… ' + reason, 'lose');
+  }
+}
+
+/* ========== CPU AI ========== */
+function gatherCpuCandidates() {
+  const required = state.required;
+  const list = [];
+  for (const e of allEntries) {
+    for (const r of e.readings) {
+      if (state.used.has(r)) continue;
+      if (endsWithN(r)) continue; // never play ん
+      if (required && getStartSound(r) !== required) continue;
+      list.push({ entry: e, reading: r });
+    }
+  }
+  return list;
+}
+
+function cpuChoose(candidates) {
+  if (candidates.length === 0) return null;
+  const diff = state.difficulty;
+
+  if (diff === 'easy') {
+    // Prefer short common words; avoid endings with few continuations
+    const scored = candidates.map(c => {
+      const end = getEndSound(c.reading);
+      const cont = countAllContinuations(end, new Set([...state.used, c.reading]));
+      const len = c.reading.length;
+      // higher score = better for easy (short + many continuations)
+      let score = cont * 3 - len * 2;
+      if (len <= 3) score += 5;
+      if (len <= 4) score += 2;
+      return { ...c, score, cont };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    // pick randomly among top 30%
+    const top = scored.slice(0, Math.max(3, Math.ceil(scored.length * 0.3)));
+    return top[Math.floor(Math.random() * top.length)];
+  }
+
+  if (diff === 'medium') {
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // hard: prefer endings with fewer continuations (pressure player)
+  const scored = candidates.map(c => {
+    const end = getEndSound(c.reading);
+    const cont = countAllContinuations(end, new Set([...state.used, c.reading]));
+    return { ...c, cont };
+  });
+  scored.sort((a, b) => a.cont - b.cont);
+  // Prefer low continuation; occasionally pick among worst 20%
+  const pressure = scored.slice(0, Math.max(5, Math.ceil(scored.length * 0.25)));
+  // Weight toward fewer continuations
+  const weights = pressure.map((c, i) => pressure.length - i);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < pressure.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return pressure[i];
+  }
+  return pressure[0];
+}
+
+async function cpuTurn() {
+  state.cpuThinking = true;
+  updateUI();
+  showMessage('考え中…', 'info');
+
+  await new Promise(r => setTimeout(r, 400 + Math.random() * 600));
+
+  const candidates = gatherCpuCandidates();
+  const choice = cpuChoose(candidates);
+
+  hideMessage();
+  state.cpuThinking = false;
+
+  if (!choice) {
+    endGame('player', 'コンピューターが続く言葉を見つけられませんでした。');
+    return;
+  }
+
+  applyMove('cpu', choice.entry.surface, choice.reading);
+
+  // Check if CPU forced player into impossible? No - turn goes to player
+  // If next required is ん somehow shouldn't happen
+  if (endsWithN(choice.reading)) {
+    // Should never happen
+    endGame('player', 'コンピューターが「ん」で終わる言葉を出しました。');
+    return;
+  }
+
+  state.turn = 'player';
+  updateUI();
+  el.wordInput.focus();
+}
+
+/* ========== Player submit ========== */
+function submitPlayer() {
+  if (!state.running || state.turn !== 'player' || state.cpuThinking) return;
+  const input = el.wordInput.value;
+  const result = validatePlayerWord(input);
+
+  if (!result.ok) {
+    showMessage(result.error, 'error');
+    return;
+  }
+
+  hideMessage();
+  el.wordInput.value = '';
+
+  applyMove('player', result.entry.surface, result.reading);
+
+  if (result.loseByN) {
+    endGame('cpu', '「ん」で終わる言葉を出してしまいました。');
+    return;
+  }
+
+  state.turn = 'cpu';
+  updateUI();
+  cpuTurn();
+}
+
+function newGame() {
+  state.running = true;
+  state.turn = 'player';
+  state.required = null;
+  state.used = new Set();
+  state.history = [];
+  state.difficulty = el.difficulty.value;
+  state.cpuThinking = false;
+  hideMessage();
+  renderHistory();
+  updateUI();
+  el.wordInput.value = '';
+  el.wordInput.focus();
+  showMessage('ゲームスタート！好きな言葉を入力してください。', 'info');
+  setTimeout(hideMessage, 2000);
+}
+
+function surrender() {
+  if (!state.running) return;
+  endGame('cpu', '降参しました。');
+}
+
+/* ========== Events ========== */
+el.btnNew.addEventListener('click', newGame);
+el.btnSubmit.addEventListener('click', submitPlayer);
+el.btnSurrender.addEventListener('click', surrender);
+el.wordInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitPlayer();
+  }
+});
+el.difficulty.addEventListener('change', () => {
+  if (state.running) {
+    state.difficulty = el.difficulty.value;
+  }
+});
+
+// Auto-start ready UI
+updateUI();
+</script>
+</body>
+</html>
